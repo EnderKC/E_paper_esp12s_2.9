@@ -84,7 +84,7 @@ void weather_init()
     display.fillRect(0, 0, 120, 128, GxEPD_BLACK);
     display.nextPage();
     // display_weather();
-    weather_ticker.attach(60 * 10, timer_weather_con);
+    weather_ticker.attach(60*20, timer_weather_con);
 }
 
 void display_weather()
@@ -95,12 +95,13 @@ void display_weather()
     display.setRotation(1);
     display.drawLine(0, 60, 119, 60, 1);
     display.drawFastHLine(0, 95, 119, 1);
-    display.nextPage();
+    // display.nextPage();
 }
 
 void update_weather(String data[4])
 {
-    display.setPartialWindow(0, 0, 119, 128);
+    display_weather();
+    // display.setPartialWindow(0, 0, 120, 128);
     display.setRotation(1);
     display.fillRect(30, 0, 60, 60, GxEPD_WHITE);
     // display.fillRect(0, 75, 20, 20, GxEPD_WHITE);
@@ -201,5 +202,6 @@ void update_weather(String data[4])
 
 void timer_weather_con()
 {
+    Serial.println("update weather !");
     timer_weather = 1;
 }

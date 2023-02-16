@@ -22,6 +22,7 @@
 1. 完善古诗显示有时会显示不出 原因：解析json时分配空间太小
 2. 更改 天气\日期 字体显示效果
 3. 增加字库显示
+4. 改进天气显示方案
 */
 
 // Ticker ticker;// 建立Ticker用于实现定时功能
@@ -48,7 +49,7 @@ void loop()
     if (timer_weather == 1)
     {
         timer_weather = 0;
-        display_weather();
+        // display_weather();
         getWeather(); // 天气更新
     }
     if (timer_gushi == 1)
