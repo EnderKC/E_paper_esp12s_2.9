@@ -14,5 +14,5 @@ void ePaper_init()
     u8g2Fonts.setForegroundColor(GxEPD_BLACK); // 设置前景色
     u8g2Fonts.setBackgroundColor(GxEPD_WHITE); // 设置背景色
     display.setTextColor(GxEPD_BLACK);         // 字体颜色为黑色
-    u8g2Fonts.setFont(u8g2_font_wqy16_t_gb2312a);
+    u8g2Fonts.setFont(u8g2_font_wqy16_t_gb2312b);
 }
