@@ -4,8 +4,6 @@
 /* 链接WIFI */
 void connectNetwork()
 {
-    const char *ssid = "请用C++输出wifi";     // WIFI账户
-    const char *password = "cout<<\"wifi\";"; // WIFI密码
     WiFi.mode(WIFI_STA);
     WiFi.begin(ssid, password);
 

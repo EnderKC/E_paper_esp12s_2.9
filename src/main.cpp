@@ -8,7 +8,7 @@
 #include <Adafruit_GFX.h>          //绘制图形
 #include <GxEPD2_BW.h>             //e-paper显示库
 #include <U8g2_for_Adafruit_GFX.h> //输出汉字
-#include <vector>
+#include "My_information.h"
 #include "display.h"
 #include "connWIFI.h"
 #include "getTime.h"
@@ -25,7 +25,7 @@
 4. 改进天气显示方案
 */
 
-// Ticker ticker;// 建立Ticker用于实现定时功能
+
 
 /*初始化设置*/
 void setup()

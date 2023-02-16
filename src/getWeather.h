@@ -1,5 +1,4 @@
-
-String weather_api = "http://api.seniverse.com/v3/weather/now.json?key=S6HxLK_QBsQ8jY3Rv&location=ip&language=zh-Hans&unit=c";
+String weather_api = "http://api.seniverse.com/v3/weather/now.json?key="+weather_APIkey+"&location=ip&language=zh-Hans&unit=c";
 
 HTTPClient httpClient;
 WiFiClient tcpClient;
