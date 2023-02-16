@@ -79,8 +79,9 @@ void initWifiManager()
 {
     WiFiManager wifiManager;
 
-    wifiManager.resetSettings();
-    ESP.eraseConfig();
+    //调试用
+    // wifiManager.resetSettings();
+    // ESP.eraseConfig();
 
     display.fillScreen(GxEPD_WHITE);
     u8g2Fonts.setCursor(0, 16);
