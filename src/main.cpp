@@ -3,6 +3,7 @@
 #include "Ticker.h"
 #include <ESP8266WiFi.h>
 #include <ESP8266HTTPClient.h> // get请求
+#include <WiFiManager.h>
 #include <ArduinoJson.h>
 #include <NTPClient.h>
 #include <Adafruit_GFX.h>          //绘制图形
@@ -23,6 +24,9 @@
 2. 更改 天气\日期 字体显示效果
 3. 增加字库显示
 4. 改进天气显示方案
+<2023.2.17> 
+5. 更好的WIFI配置界面
+6. 优化部分代码
 */
 
 
@@ -31,7 +35,7 @@
 void setup()
 {
     ePaper_init();
-    connectNetwork();
+    initWifiManager();
     time_init();
     weather_init();
     gushi_init();
