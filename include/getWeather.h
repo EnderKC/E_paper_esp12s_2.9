@@ -11,6 +11,8 @@ int timer_weather = 1;
 
 Ticker weather_ticker;
 
+int display_day = 0;
+
 void analyze_weather_json(String input, String (&data)[4])
 {
     StaticJsonDocument<512> doc;
@@ -159,9 +161,7 @@ void update_weather(String data[4])
     /*更新日期*/
     if (timeinfo.tm_mday || now_day)
     {
-        now_day = timeinfo.tm_mday;
-        now_mon = timeinfo.tm_mon;
-        now_week = timeinfo.tm_wday;
+        display_day = timeinfo.tm_mon;
         u8g2Fonts.setForegroundColor(GxEPD_WHITE); // 设置前景色
         u8g2Fonts.setBackgroundColor(GxEPD_BLACK); // 设置背景色
         u8g2Fonts.setCursor(10, 108 + 15);

@@ -58,6 +58,7 @@ void compare_time()
         time_update();
         now_hour = timeinfo.tm_hour;
         now_min = timeinfo.tm_min;
+        now_mon = timeinfo.tm_mon;
     }
     
 }
