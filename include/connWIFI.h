@@ -85,7 +85,7 @@ void initWifiManager()
 
     display.fillScreen(GxEPD_WHITE);
     u8g2Fonts.setCursor(0, 16);
-    u8g2Fonts.println("WIFI配置界面\n");
+    u8g2Fonts.println("WIFI配置界面[EnderKC]\n");
     u8g2Fonts.println("扫描二维码\n");
     u8g2Fonts.println("输入192.168.4.25\n");
     display.drawInvertedBitmap(180, 16, wifi_img, 96, 96, GxEPD_BLACK);

@@ -18,7 +18,7 @@
 #include "getGushi.h"
 #include "getDriver.h"
 
-#define switch_WD 1  // 切换 古诗 车辆限行显示 0 为古诗 1 为车辆限行（天津）
+#define switch_WD 0  // 切换 古诗 车辆限行显示 0 为古诗 1 为车辆限行（天津）
 
 /*
 =========更新日志==========
