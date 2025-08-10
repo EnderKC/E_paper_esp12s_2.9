@@ -1,137 +1,96 @@
-String driver_api_tianjin = "http://api.seniverse.com/v3/life/driving_restriction.json?key=" + driver_api_key + "&location=WWGQDCW6TBW1";
-String driver_api_beijing = "http://api.seniverse.com/v3/life/driving_restriction.json?key=" + driver_api_key + "&location=WX4FBXXFKE4F";
-int timer_driver = 1;
+/**
+ * @file getDriver.h
+ * @brief 车辆限行信息获取和显示模块头文件
+ * @details 通过心知天气API获取车辆限行信息，并在电子墨水屏上显示
+ * @author ESP12S E-Paper Weather Display System
+ * @version 2023.2.23
+ */
 
-Ticker driver_ticker;
+#ifndef GET_DRIVER_H
+#define GET_DRIVER_H
 
-HTTPClient httpClient_driver;
-WiFiClient tcpClient_driver;
+#include <Arduino.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClient.h>
+#include "Ticker.h"
 
-void update_driver(String data[4]);
+// ==================== API配置声明 ====================
+
+/**
+ * @brief 天津限行API请求URL声明
+ * @details 使用心知天气API获取天津地区车辆限行信息
+ */
+extern String driver_api_tianjin;
+
+/**
+ * @brief 北京限行API请求URL声明
+ * @details 使用心知天气API获取北京地区车辆限行信息  
+ */
+extern String driver_api_beijing;
+
+/**
+ * @brief HTTP客户端声明（限行专用）
+ * @details 专门用于限行API请求的HTTP客户端实例
+ */
+extern HTTPClient httpClient_driver;
+
+/**
+ * @brief WiFi TCP连接客户端声明（限行专用）
+ * @details 专门用于限行API请求的TCP连接客户端
+ */
+extern WiFiClient tcpClient_driver;
+
+// ==================== 定时器系统声明 ====================
+
+/**
+ * @brief 限行更新定时器对象声明
+ * @details 每120分钟触发一次限行信息更新
+ */
+extern Ticker driver_ticker;
+
+/**
+ * @brief 限行更新标志位声明
+ * @details 当值为1时表示需要更新限行信息，初始值为1以便首次运行时立即获取数据
+ */
+extern int timer_driver;
+
+// ==================== 函数声明 ====================
+
+/**
+ * @brief 限行模块初始化函数
+ * @details 启动限行信息获取定时器，每120分钟（2小时）触发一次更新
+ */
+void driver_init();
+
+/**
+ * @brief 主限行信息获取函数
+ * @details 发送HTTP GET请求到心知天气API，获取天津地区限行信息
+ */
 void getDriver();
+
+/**
+ * @brief 解析限行API返回的JSON数据函数
+ * @param input 从API获取的原始JSON字符串
+ * @param data 输出数组，用于存储解析后的限行信息
+ *             data[0]: 第一个限行尾号
+ *             data[1]: 第二个限行尾号
+ *             data[2]: 限行备注信息（如"尾号限行"）
+ *             data[3]: 城市名称
+ */
+void analyze_driver_json(String input, String (&data)[4]);
+
+/**
+ * @brief 更新限行显示界面函数
+ * @param data 包含限行信息的字符串数组
+ * @details 在电子墨水屏右下角区域显示限行信息，使用部分刷新提高响应速度
+ */
+void update_driver(String data[4]);
+
+/**
+ * @brief 限行定时器回调函数
+ * @details 由Ticker定时器调用，设置限行更新标志位
+ *          此函数在定时器中断中执行，仅设置标志位，实际更新在主循环中进行
+ */
 void driver_timer();
 
-void analyze_driver_json(String input, String (&data)[4])
-{
-    // String input;
-
-    StaticJsonDocument<1536> doc;
-
-    DeserializationError error = deserializeJson(doc, input);
-
-    if (error)
-    {
-        Serial.print(F("deserializeJson() failed: "));
-        Serial.println(error.f_str());
-        return;
-    }
-
-    JsonObject location = doc["results"][0]["location"];
-    String location_id = location["id"];                           // "WWGQDCW6TBW1"
-    String location_name = location["name"];                       // "天津"
-    String location_country = location["country"];                 // "CN"
-    String location_path = location["path"];                       // "天津,天津,中国"
-    String location_timezone = location["timezone"];               // "Asia/Shanghai"
-    String location_timezone_offset = location["timezone_offset"]; // "+08:00"
-
-    JsonObject restriction = doc["results"][0]["restriction"];
-    String restriction_penalty = restriction["penalty"];
-    String restriction_region = restriction["region"]; // "外环线(不含)以内道路"
-    String restriction_time = restriction["time"];     // "每日7时至19时"
-    String restriction_remarks = restriction["remarks"];
-
-    JsonArray restriction_limits = restriction["limits"];
-
-    JsonObject restriction_limits_0 = restriction_limits[0];
-    String restriction_limits_0_date = restriction_limits_0["date"];
-
-    String restriction_limits_0_plates_0 = restriction_limits_0["plates"][0];
-    String restriction_limits_0_plates_1 = restriction_limits_0["plates"][1];
-
-    String restriction_limits_0_memo = restriction_limits_0["memo"]; // "尾号限行"
-
-    JsonObject restriction_limits_1 = restriction_limits[1];
-    String restriction_limits_1_date = restriction_limits_1["date"];
-
-    String restriction_limits_1_plates_0 = restriction_limits_1["plates"][0];
-    String restriction_limits_1_plates_1 = restriction_limits_1["plates"][1];
-
-    String restriction_limits_1_memo = restriction_limits_1["memo"]; // "尾号限行"
-
-    JsonObject restriction_limits_2 = restriction_limits[2];
-    String restriction_limits_2_date = restriction_limits_2["date"];
-
-    String restriction_limits_2_memo = restriction_limits_2["memo"]; // "周末不限行"
-
-    data[0] = restriction_limits_0_plates_0;
-    data[1] = restriction_limits_0_plates_1;
-    data[2] = restriction_limits_0_memo;
-    data[3] = location_name;
-
-    update_driver(data);
-}
-
-void getDriver()
-{
-    httpClient_driver.begin(tcpClient_driver, driver_api_tianjin);
-    int httpCode = httpClient_driver.GET();
-
-    if (httpCode == HTTP_CODE_OK)
-    {
-        String Payload = httpClient_driver.getString(); // 使用getString函数获取服务器响应体内容
-        Serial.print("\r\nServer Respose Code: ");
-        Serial.println(httpCode);
-        Serial.println("Server Response Payload: ");
-        Serial.println(Payload);
-        /*分析数据*/
-        String data[4];
-        analyze_driver_json(Payload, data);
-        Serial.println(data[0]);
-        Serial.println(data[1]);
-        if (data[0].length() > 0)
-        {
-            Serial.println("今日限行");
-            update_driver(data);
-        }
-        else
-        {
-            Serial.println("今日不限行");
-        }
-    }
-    else
-    {
-        Serial.print("\r\nServer Respose Code: ");
-        Serial.println(httpCode);
-    }
-    /* 关闭ESP8266与服务器的连接 */
-    httpClient.end();
-}
-
-void update_driver(String data[4])
-{
-    display.setPartialWindow(121, 97, 175, 31);
-    display.fillRect(121, 96, 175, 32, GxEPD_WHITE);
-    u8g2Fonts.setForegroundColor(GxEPD_BLACK); // 设置前景色
-    u8g2Fonts.setBackgroundColor(GxEPD_WHITE); // 设置背景色
-    u8g2Fonts.setCursor(121, 108 + 15);
-    if (data[0].length() > 0)
-    {
-        u8g2Fonts.print(data[3]+data[2] +": "+ data[0] + "  " + data[1]);
-    }
-    else
-    {
-        u8g2Fonts.print(data[3] + "不限行,或获取失败");
-    }
-
-    display.nextPage();
-}
-
-void driver_init()
-{
-    driver_ticker.attach(60*60*2, driver_timer);
-}
-
-void driver_timer()
-{
-    timer_driver = 1;
-}
+#endif // GET_DRIVER_H

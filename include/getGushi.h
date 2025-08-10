@@ -1,94 +1,81 @@
-void gushi_timer();
+/**
+ * @file getGushi.h
+ * @brief 古诗词获取和显示模块
+ * @details 通过今日诗词API获取随机古诗词，并在电子墨水屏上显示
+ * @author ESP12S E-Paper Weather Display System
+ * @version 2023.2.23
+ */
 
-String gushi_api = "http://v1.jinrishici.com/all.json";
+#ifndef GET_GUSHI_H
+#define GET_GUSHI_H
 
-HTTPClient httpClient_gushi;
-WiFiClient tcpClient_gushi;
+#include <Arduino.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClient.h>
+#include "Ticker.h"
 
-Ticker gushi_ticker;
+// ==================== API配置声明 ====================
 
-int timer_gushi = 1;
+/**
+ * @brief 今日诗词API请求URL声明
+ */
+extern String gushi_api;
 
+/**
+ * @brief HTTP客户端声明（古诗词专用）
+ */
+extern HTTPClient httpClient_gushi;
+
+/**
+ * @brief WiFi TCP连接客户端声明（古诗词专用）
+ */
+extern WiFiClient tcpClient_gushi;
+
+// ==================== 定时器系统声明 ====================
+
+/**
+ * @brief 古诗词更新定时器对象声明
+ * @details 每10分钟触发一次古诗词更新
+ */
+extern Ticker gushi_ticker;
+
+/**
+ * @brief 古诗词更新标志位声明
+ * @details 当值为1时表示需要更新古诗词
+ */
+extern int timer_gushi;
+
+// ==================== 函数声明 ====================
+
+/**
+ * @brief 古诗词模块初始化函数声明
+ * @details 启动古诗词获取定时器
+ */
+void gushi_init();
+
+/**
+ * @brief 主古诗词获取函数声明
+ * @details 发送HTTP GET请求到今日诗词API，获取随机古诗词
+ */
+void getGushi();
+
+/**
+ * @brief 解析今日诗词API返回的JSON数据函数声明
+ * @param input 从API获取的原始JSON字符串
+ * @param data 输出数组，用于存储解析后的古诗词信息
+ */
+void analyze_gushi_json(String input, String (&data)[4]);
+
+/**
+ * @brief 更新古诗词显示界面函数声明
+ * @param data 包含古诗词信息的字符串数组 [诗句, 标题, 作者, 分类]
+ */
 void update_gushi(String data[4]);
 
-void analyze_gushi_json(String input, String (&data)[4])
-{
-    // String input;
+/**
+ * @brief 古诗词定时器回调函数声明
+ * @details 由Ticker定时器调用，设置古诗词更新标志位
+ */
+void gushi_timer();
 
-    StaticJsonDocument<256> doc;
-
-    DeserializationError error = deserializeJson(doc, input);
-
-    if (error)
-    {
-        Serial.print(F("deserializeJson() failed: "));
-        Serial.println(error.f_str());
-        return;
-    }
-
-    String content = doc["content"];   // "泰山不要欺毫末，颜子无心羡老彭。"
-    String origin = doc["origin"];     // "放言五首·其五"
-    String author = doc["author"];     // "白居易"
-    String category = doc["category"]; // "古诗文-山水-泰山"
-
-    data[0] = content;
-    data[1] = origin;
-    data[2] = author;
-    data[3] = category;
-}
-
-void getGushi()
-{
-    httpClient_gushi.begin(tcpClient_gushi, gushi_api);
-    int httpCode = httpClient_gushi.GET();
-
-    if (httpCode == HTTP_CODE_OK)
-    {
-        String Payload = httpClient_gushi.getString();// 使用getString函数获取服务器响应体内容
-
-        Serial.print("\r\nServer Respose Code: ");
-        Serial.println(httpCode);
-        Serial.println("Server Response Payload: ");
-        Serial.println(Payload);
-        /*分析数据*/
-        String data[4];
-        analyze_gushi_json(Payload, data);
-        Serial.println(data[0]);
-        Serial.println(data[1]);
-        Serial.println(data[2]);
-        Serial.println(data[3]);
-        if (Payload.length() == 0)
-        {
-            Serial.println("未获取到,重新获取String");
-        }
-        update_gushi(data);
-    }
-    else
-    {
-        Serial.print("\r\nServer Respose Code: ");
-        Serial.println(httpCode);
-    }
-    /* 关闭ESP8266与服务器的连接 */
-    httpClient_gushi.end();
-}
-
-void gushi_init()
-{
-    gushi_ticker.attach(60 * 10, gushi_timer);
-}
-
-void update_gushi(String data[4])
-{
-    display.setPartialWindow(121, 97, 175, 31);
-    display.fillRect(121, 96, 175, 32, GxEPD_WHITE);
-    u8g2Fonts.setForegroundColor(GxEPD_BLACK); // 设置前景色
-    u8g2Fonts.setBackgroundColor(GxEPD_WHITE); // 设置背景色
-    u8g2Fonts.setCursor(121, 108 + 15);
-    u8g2Fonts.print(data[0]);
-    display.nextPage();
-}
-
-void gushi_timer()
-{
-    timer_gushi = 1;
-}
+#endif // GET_GUSHI_H
