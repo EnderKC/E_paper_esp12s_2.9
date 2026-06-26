@@ -38,6 +38,9 @@ jobs:
       - name: Install PlatformIO Core
         run: pip install --upgrade platformio
 
+      - name: Prepare default secrets
+        run: cp include/secrets.example.h include/secrets.h
+
       - name: Build firmware
         run: pio run -e esp12e
 

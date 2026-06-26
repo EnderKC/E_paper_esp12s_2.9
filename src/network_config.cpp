@@ -1,13 +1,14 @@
 #include "network_config.h"
+#include "secrets.h"
 
-const char *mqtt_broker = "";
+const char *mqtt_broker = MQTT_BROKER;
 const char *mqtt_state_topic = "emqx/esp8266/state";
 const char *mqtt_command_topic = "emqx/esp8266/cmd";
-const char *mqtt_username = "";
-const char *mqtt_password = "";
+const char *mqtt_username = MQTT_USERNAME;
+const char *mqtt_password = MQTT_PASSWORD;
 
-String weather_APIkey = "";
-String driver_api_key = "";
+String weather_APIkey = WEATHER_API_KEY;
+String driver_api_key = DRIVER_API_KEY;
 
 String weather_api = "http://api.seniverse.com/v3/weather/now.json?key=" +
                      weather_APIkey +
