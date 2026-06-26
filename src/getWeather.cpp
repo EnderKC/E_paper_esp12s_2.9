@@ -15,36 +15,13 @@
 #include "Ticker.h"
 #include "getWeather.h"
 #include "display.h"
+#include "ui_helpers.h"
 #include "weather_img.h"
 #include "My_information.h"
-
-// ==================== API密钥定义 ====================
-
-/**
- * @brief API密钥定义
- * @details 这些密钥在My_information.h中声明，在这里定义
- */
-String weather_APIkey = "S6HxLK_QBsQ8jY3Rv"; // 知心天气APIkey
-String driver_api_key = "SuBkUBbhV4zhLGD8R"; // 车辆限行APIkey
-
-/**
- * @brief 限行API URL定义
- * @details 天津和北京的限行查询接口
- */
-String driver_api_tianjin = "http://api.seniverse.com/v3/life/driving_restriction.json?key=" + driver_api_key + "&location=WWGQDCW6TBW1";
-String driver_api_beijing = "http://api.seniverse.com/v3/life/driving_restriction.json?key=" + driver_api_key + "&location=WX4FBXXFKE4F";
+#include "network_config.h"
+#include "http_helpers.h"
 
 // ==================== API配置与网络连接 ====================
-
-/**
- * @brief 心知天气API请求URL定义
- * @details 使用IP定位获取当前位置的实时天气信息
- * - API提供商：心知天气 (Seniverse)
- * - 语言：简体中文
- * - 温度单位：摄氏度
- * - 定位方式：根据请求IP自动定位
- */
-String weather_api = "http://api.seniverse.com/v3/weather/now.json?key="+weather_APIkey+"&location=ip&language=zh-Hans&unit=c";
 
 /**
  * @brief HTTP客户端定义，用于发送API请求
@@ -157,47 +134,16 @@ void analyze_weather_json(String input, String (&data)[4])
  */
 void getWeather()
 {
-    // 初始化HTTP客户端，设置目标URL
-    httpClient.begin(tcpClient, weather_api);
-    
-    // 发送GET请求
-    int httpCode = httpClient.GET();
-
-    // 检查HTTP响应状态
-    if (httpCode == HTTP_CODE_OK)
+    String payload;
+    if (fetchHttpPayload(httpClient, tcpClient, weather_api, payload, "weather"))
     {
-        // 获取服务器响应内容
-        String Payload = httpClient.getString();
-        
-        // 输出Serial调试信息
-        Serial.print("\r\n服务器响应状态码: ");
-        Serial.println(httpCode);
-        Serial.println("服务器响应内容: ");
-        Serial.println(Payload);
-        
-        // 解析JSON数据
         String data[4];
-        analyze_weather_json(Payload, data);
-        
-        // 输出解析结果用于调试
-        Serial.println("解析结果:");
-        Serial.println("位置: " + data[0]);
-        Serial.println("天气: " + data[1]);
-        Serial.println("代码: " + data[2]);
-        Serial.println("温度: " + data[3] + "℃");
-        
-        // 更新显示界面
+        analyze_weather_json(payload, data);
         update_weather(data);
+        return;
     }
-    else
-    {
-        // HTTP请求失败，输出错误信息
-        Serial.print("\r\nHTTP请求失败，状态码: ");
-        Serial.println(httpCode);
-    }
-    
-    // 关闭ESP8266与服务器的连接，释放资源
-    httpClient.end();
+
+    timer_weather = 1;
 }
 
 /**
@@ -214,10 +160,10 @@ void getWeather()
 void weather_init()
 {
     // 设置部分更新窗口，只更新天气区域以节省电力
-    display.setPartialWindow(0, 0, 120, 128);
+    display.setPartialWindow(0, 0, 120, 95);
     
     // 填充黑色背景，清空天气显示区域
-    display.fillRect(0, 0, 120, 128, GxEPD_BLACK);
+    display.fillRect(0, 0, 120, 95, GxEPD_BLACK);
     
     // 刷新显示缓存
     display.nextPage();
@@ -239,14 +185,11 @@ void weather_init()
  */
 void display_weather()
 {
-    // 初始化显示库，准备绘制
-    display.firstPage();
-    
     // 设置部分更新窗口，只更新天气区域
-    display.setPartialWindow(0, 0, 120, 128);
+    display.setPartialWindow(0, 0, 120, 95);
     
     // 填充黑色背景，清空显示区域
-    display.fillRect(0, 0, 120, 128, GxEPD_BLACK);
+    display.fillRect(0, 0, 120, 95, GxEPD_BLACK);
     
     // 设置屏幕旋转：1=顺时针旋转90度（横屏模式）
     display.setRotation(1);
@@ -255,7 +198,7 @@ void display_weather()
     display.drawLine(0, 60, 119, 60, 1);
     
     // 绘制第二条水平分割线：在y=95位置从左到右
-    display.drawFastHLine(0, 95, 119, 1);
+    // display.drawFastHLine(0, 95, 119, 1);
 }
 
 /**
@@ -283,113 +226,48 @@ void display_weather()
  */
 void update_weather(String data[4])
 {
-    // 绘制天气显示区域的基础框架
-    display_weather();
-    
-    // 设置屏幕旋转为横屏模式
-    display.setRotation(1);
-    
-    // 清除天气图标显示区域（填充白色背景）
-    display.fillRect(30, 0, 60, 60, GxEPD_WHITE);
-    
-    // 根据天气代码选择对应的天气图标
-    if (data[2] == "0" || data[2] == "2" || data[2] == "38")
+    display.setPartialWindow(0, 0, 120, 95);
+    display.firstPage();
+    do
     {
-        // 晴天（白天）图标
-        display.drawInvertedBitmap(30, 0, qing_d, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "1" || data[2] == "3")
-    {
-        // 晴天（夜晚）图标
-        display.drawInvertedBitmap(30, 0, qing_n, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "4" || data[2] == "5" || data[2] == "6" || data[2] == "7" || data[2] == "8")
-    {
-        // 多云天气图标
-        display.drawInvertedBitmap(30, 0, duoyun, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "9")
-    {
-        // 阴天图标
-        display.drawInvertedBitmap(30, 0, yintian, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "10" || data[2] == "13" || data[2] == "14" || data[2] == "15" || data[2] == "16" || data[2] == "17" || data[2] == "18")
-    {
-        // 阵雨天气图标
-        display.drawInvertedBitmap(30, 0, zhenyu, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "11" || data[2] == "12")
-    {
-        // 雷阵雨天气图标
-        display.drawInvertedBitmap(30, 0, leizhenyu, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "20" || data[2] == "21" || data[2] == "22" || data[2] == "23" || data[2] == "24" || data[2] == "25" || data[2] == "37")
-    {
-        // 小雪天气图标
-        display.drawInvertedBitmap(30, 0, xiaoxue, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "26" || data[2] == "27")
-    {
-        // 浮尘天气图标
-        display.drawInvertedBitmap(30, 0, fuchen, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "28" || data[2] == "29" || data[2] == "32" || data[2] == "33" || data[2] == "36")
-    {
-        // 大风天气图标
-        display.drawInvertedBitmap(30, 0, feng, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "31" || data[2] == "34" || data[2] == "35")
-    {
-        // 雾天图标
-        display.drawInvertedBitmap(30, 0, wu, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "99")
-    {
-        // 未知天气图标
-        display.drawInvertedBitmap(30, 0, weizhi, 60, 60, GxEPD_BLACK);
-    }
+        display_weather();
+        display.fillRect(30, 0, 60, 60, GxEPD_WHITE);
 
-    // 设置字体颜色：前景色为白色，背景色为黑色
-    u8g2Fonts.setForegroundColor(GxEPD_WHITE);
-    u8g2Fonts.setBackgroundColor(GxEPD_BLACK);
-    
-    // 设置游标位置并显示天气信息："位置 天气描述 温度℃"
-    u8g2Fonts.setCursor(10, 90);
-    u8g2Fonts.print(data[0]+" "+data[1]+" "+data[3]+"℃");
+        if (data[2] == "0" || data[2] == "2" || data[2] == "38")
+            display.drawInvertedBitmap(30, 0, qing_d, 60, 60, GxEPD_BLACK);
+        else if (data[2] == "1" || data[2] == "3")
+            display.drawInvertedBitmap(30, 0, qing_n, 60, 60, GxEPD_BLACK);
+        else if (data[2] == "4" || data[2] == "5" || data[2] == "6" || data[2] == "7" || data[2] == "8")
+            display.drawInvertedBitmap(30, 0, duoyun, 60, 60, GxEPD_BLACK);
+        else if (data[2] == "9")
+            display.drawInvertedBitmap(30, 0, yintian, 60, 60, GxEPD_BLACK);
+        else if (data[2] == "10" || data[2] == "13" || data[2] == "14" || data[2] == "15" || data[2] == "16" || data[2] == "17" || data[2] == "18")
+            display.drawInvertedBitmap(30, 0, zhenyu, 60, 60, GxEPD_BLACK);
+        else if (data[2] == "11" || data[2] == "12")
+            display.drawInvertedBitmap(30, 0, leizhenyu, 60, 60, GxEPD_BLACK);
+        else if (data[2] == "20" || data[2] == "21" || data[2] == "22" || data[2] == "23" || data[2] == "24" || data[2] == "25" || data[2] == "37")
+            display.drawInvertedBitmap(30, 0, xiaoxue, 60, 60, GxEPD_BLACK);
+        else if (data[2] == "26" || data[2] == "27")
+            display.drawInvertedBitmap(30, 0, fuchen, 60, 60, GxEPD_BLACK);
+        else if (data[2] == "28" || data[2] == "29" || data[2] == "32" || data[2] == "33" || data[2] == "36")
+            display.drawInvertedBitmap(30, 0, feng, 60, 60, GxEPD_BLACK);
+        else if (data[2] == "31" || data[2] == "34" || data[2] == "35")
+            display.drawInvertedBitmap(30, 0, wu, 60, 60, GxEPD_BLACK);
+        else
+            display.drawInvertedBitmap(30, 0, weizhi, 60, 60, GxEPD_BLACK);
 
-    // 更新日期显示（仅在有有效时间信息时）
-    if (timeinfo.tm_mday || now_day)
-    {
-        // 记录当前显示的月份，用于日期变化检测
-        display_day = timeinfo.tm_mon;
-        
-        // 设置字体颜色
         u8g2Fonts.setForegroundColor(GxEPD_WHITE);
         u8g2Fonts.setBackgroundColor(GxEPD_BLACK);
-        
-        // 设置日期显示位置
-        u8g2Fonts.setCursor(10, 108 + 15);
-        
-        // 根据星期值转换为中文显示
-        String week_day;
-        switch (timeinfo.tm_wday)
-        {
-        case 0: week_day = "周日"; break;
-        case 1: week_day = "周一"; break;
-        case 2: week_day = "周二"; break;
-        case 3: week_day = "周三"; break;
-        case 4: week_day = "周四"; break;
-        case 5: week_day = "周五"; break;
-        case 6: week_day = "周六"; break;
-        default: week_day = "未知"; break;
-        }
-        
-        // 显示日期信息："月份月 日期日 星期"
-        u8g2Fonts.print(String(timeinfo.tm_mon+1)+"月 "+String(timeinfo.tm_mday)+"日 "+week_day);
-    }
+        u8g2Fonts.setCursor(10, 74);
+        u8g2Fonts.print(data[0] + " " + data[1] + " " + data[3] + "℃");
 
-    // 刷新显示缓存，显示更新的内容
-    display.nextPage();
+        if (timeinfo.tm_mday || now_day)
+        {
+            display_day = timeinfo.tm_mon * 100 + timeinfo.tm_mday;
+            u8g2Fonts.setCursor(10, 91);
+            u8g2Fonts.print(String(timeinfo.tm_mon + 1) + "月 " + String(timeinfo.tm_mday) + "日 " + formatWeekday(timeinfo.tm_wday));
+        }
+    } while (display.nextPage());
 }
 
 /**
@@ -402,6 +280,5 @@ void update_weather(String data[4])
  */
 void timer_weather_con()
 {
-    Serial.println("天气定时器触发 - 准备更新天气信息！");
     timer_weather = 1;  // 设置天气更新标志位
 }

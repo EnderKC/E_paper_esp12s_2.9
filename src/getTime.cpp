@@ -66,15 +66,15 @@ void time_init()
     getLocalTime(&timeinfo);
     /*区域初始化*/
     display.fillScreen(GxEPD_WHITE);
-    display.setPartialWindow(119, 0, 177, 90);
-    display.fillRect(119, 0, 177, 90, GxEPD_BLACK);
+    display.setPartialWindow(119, 0, 177, 95);
+    display.fillRect(119, 0, 177, 95, GxEPD_BLACK);
     // display.updateWindow(119, 0, 177, 90, true);
     display.nextPage();
     delay(500); // 程序暂停2秒
-    display.fillRect(119, 0, 177, 90, GxEPD_WHITE);
+    display.fillRect(119, 0, 177, 95, GxEPD_WHITE);
     display.nextPage();
     delay(500); // 程序暂停2秒
-    display.drawRect(119, 0, 177, 90, GxEPD_BLACK);
+    display.drawRect(119, 0, 177, 95, GxEPD_BLACK);
     display.nextPage();
     time_ticker.attach(10, time_timer); // 每隔10s更新一次时间
 }
@@ -103,6 +103,8 @@ void compare_time()
         now_hour = timeinfo.tm_hour;
         now_min = timeinfo.tm_min;
         now_mon = timeinfo.tm_mon;
+        now_day = timeinfo.tm_mday;
+        now_week = timeinfo.tm_wday;
     }
 }
 
@@ -112,10 +114,13 @@ void compare_time()
  */
 void force_update_time()
 {
+    getLocalTime(&timeinfo);
     time_update();
     now_hour = timeinfo.tm_hour;
     now_min = timeinfo.tm_min;
     now_mon = timeinfo.tm_mon;
+    now_day = timeinfo.tm_mday;
+    now_week = timeinfo.tm_wday;
 }
 
 /**
@@ -124,9 +129,9 @@ void force_update_time()
  */
 void time_update()
 {
-    display.setPartialWindow(119, 0, 177, 96);
+    display.setPartialWindow(119, 0, 177, 95);
     display.firstPage();
-    display.drawRect(119, 0, 177, 96, GxEPD_BLACK);
+    display.drawRect(119, 0, 177, 95, GxEPD_BLACK);
     int hours = timeinfo.tm_hour;
     int min = timeinfo.tm_min;
     do
@@ -199,11 +204,11 @@ void num_time(int x, int y, int num)
         break;
     case 1:
         display.fillRoundRect(x + 5, y, 20, 5, 2, GxEPD_WHITE);
-        display.fillRoundRect(x + 25, y + 5, 5, 20, 2, GxEPD_WHITE);
-        display.fillRoundRect(x + 25, y + 30, 5, 20, 2, GxEPD_WHITE);
+        display.fillRoundRect(x + 25, y + 5, 5, 20, 2, GxEPD_BLACK);
+        display.fillRoundRect(x + 25, y + 30, 5, 20, 2, GxEPD_BLACK);
         display.fillRoundRect(x + 5, y + 50, 20, 5, 2, GxEPD_WHITE);
-        display.fillRoundRect(x, y + 30, 5, 20, 2, GxEPD_BLACK);
-        display.fillRoundRect(x, y + 5, 5, 20, 2, GxEPD_BLACK);
+        display.fillRoundRect(x, y + 30, 5, 20, 2, GxEPD_WHITE);
+        display.fillRoundRect(x, y + 5, 5, 20, 2, GxEPD_WHITE);
         display.fillRoundRect(x + 5, y + 25, 20, 5, 2, GxEPD_WHITE);
         break;
     case 2:

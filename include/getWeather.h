@@ -14,23 +14,10 @@
 #include <WiFiClient.h>
 #include "Ticker.h"
 #include <time.h>
+#include "network_config.h"
 
 // ==================== HTTP客户端声明 ====================
-
-/**
- * @brief 心知天气API请求URL声明
- * @details 使用IP定位获取当前位置的实时天气信息
- */
-extern String weather_api;
-
-/**
- * @brief HTTP客户端声明
- */
 extern HTTPClient httpClient;
-
-/**
- * @brief WiFi TCP连接客户端声明
- */
 extern WiFiClient tcpClient;
 
 // ==================== 定时器系统声明 ====================

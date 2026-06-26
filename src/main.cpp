@@ -27,14 +27,8 @@
 #include "getWeather.h"            // 天气信息获取模块
 #include "getGushi.h"              // 古诗词获取显示模块
 #include "getDriver.h"             // 车辆限行信息获取模块
-
-/**
- * @brief 功能模式切换宏定义
- * @details 控制屏幕右侧显示内容的切换
- *          0 - 显示古诗词模式（默认）
- *          1 - 显示车辆限行信息模式（天津地区）
- */
-#define switch_WD 0
+#include "mqtt.h"                  // MQTT通信模块
+#include "app_config.h"
 
 /**
  * @brief 系统版本更新日志
@@ -78,9 +72,16 @@ void setup()
     initWifiManager(); // 初始化WiFi管理器，提供连接配置界面
     time_init();      // 初始化NTP时间同步，每10秒检查一次
     weather_init();   // 初始化天气信息获取，20分钟刷新一次
-    gushi_init();     // 初始化古诗词获取，10分钟刷新一次
-    driver_init();    // 初始化限行信息获取，120分钟刷新一次
     ePaper_flash_init();// 初始化墨水屏全局刷新，30分钟刷新一次
+#if APP_MODE == 0
+    gushi_init();     // 初始化古诗词获取，10分钟刷新一次
+#endif
+#if APP_MODE == 1
+    driver_init();    // 初始化限行信息获取，120分钟刷新一次
+#endif
+#if APP_MODE == 2
+    initMQTT();       // 初始化MQTT连接
+#endif
 }
 
 /**
@@ -111,7 +112,7 @@ void loop()
         force_update_time();
     }
     // 天气信息更新检查（频率：每20分钟或日期变化时）
-    if (timer_weather == 1 || now_mon != display_day) 
+    if (timer_weather == 1 || (now_mon * 100 + now_day) != display_day) 
     {
         timer_weather = 0;    // 重置定时器标志
         getWeather();         // 获取并显示天气信息
@@ -124,7 +125,7 @@ void loop()
         ePaper_flash();
     }
     
-#if switch_WD == 0
+#if APP_MODE == 0
     // 古诗词更新检查（仅古诗模式，频率：每10分钟）
     if (timer_gushi == 1)
     {
@@ -133,12 +134,16 @@ void loop()
     }
 #endif
 
-#if switch_WD == 1
+#if APP_MODE == 1
     // 车辆限行信息更新检查（仅限行模式，频率：每2小时）
     if (timer_driver == 1)
     {
         timer_driver = 0;     // 重置定时器标志
         getDriver();          // 获取并显示限行信息
     }
+#endif
+
+#if APP_MODE == 2
+    mqttLoop();
 #endif
 }

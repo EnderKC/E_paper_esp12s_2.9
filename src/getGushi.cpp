@@ -13,6 +13,8 @@
 #include "Ticker.h"
 #include "getGushi.h"
 #include "display.h"
+#include "ui_helpers.h"
+#include "http_helpers.h"
 
 // ==================== API配置定义 ====================
 
@@ -82,37 +84,13 @@ void analyze_gushi_json(String input, String (&data)[4])
  */
 void getGushi()
 {
-    httpClient_gushi.begin(tcpClient_gushi, gushi_api);
-    int httpCode = httpClient_gushi.GET();
-
-    if (httpCode == HTTP_CODE_OK)
+    String payload;
+    if (fetchHttpPayload(httpClient_gushi, tcpClient_gushi, gushi_api, payload, "gushi"))
     {
-        String Payload = httpClient_gushi.getString();// 使用getString函数获取服务器响应体内容
-
-        Serial.print("\r\nServer Respose Code: ");
-        Serial.println(httpCode);
-        Serial.println("Server Response Payload: ");
-        Serial.println(Payload);
-        /*分析数据*/
         String data[4];
-        analyze_gushi_json(Payload, data);
-        Serial.println(data[0]);
-        Serial.println(data[1]);
-        Serial.println(data[2]);
-        Serial.println(data[3]);
-        if (Payload.length() == 0)
-        {
-            Serial.println("未获取到,重新获取String");
-        }
+        analyze_gushi_json(payload, data);
         update_gushi(data);
     }
-    else
-    {
-        Serial.print("\r\nServer Respose Code: ");
-        Serial.println(httpCode);
-    }
-    /* 关闭ESP8266与服务器的连接 */
-    httpClient_gushi.end();
 }
 
 /**
@@ -130,13 +108,7 @@ void gushi_init()
  */
 void update_gushi(String data[4])
 {
-    display.setPartialWindow(121, 97, 175, 31);
-    display.fillRect(121, 96, 175, 32, GxEPD_WHITE);
-    u8g2Fonts.setForegroundColor(GxEPD_BLACK); // 设置前景色
-    u8g2Fonts.setBackgroundColor(GxEPD_WHITE); // 设置背景色
-    u8g2Fonts.setCursor(121, 108 + 15);
-    u8g2Fonts.print(data[0]);
-    display.nextPage();
+    renderStatusLine(data[0]);
 }
 
 /**

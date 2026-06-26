@@ -13,31 +13,10 @@
 #include <ESP8266HTTPClient.h>
 #include <WiFiClient.h>
 #include "Ticker.h"
+#include "network_config.h"
 
-// ==================== API配置声明 ====================
-
-/**
- * @brief 天津限行API请求URL声明
- * @details 使用心知天气API获取天津地区车辆限行信息
- */
-extern String driver_api_tianjin;
-
-/**
- * @brief 北京限行API请求URL声明
- * @details 使用心知天气API获取北京地区车辆限行信息  
- */
-extern String driver_api_beijing;
-
-/**
- * @brief HTTP客户端声明（限行专用）
- * @details 专门用于限行API请求的HTTP客户端实例
- */
+// ==================== HTTP客户端声明（限行专用） ====================
 extern HTTPClient httpClient_driver;
-
-/**
- * @brief WiFi TCP连接客户端声明（限行专用）
- * @details 专门用于限行API请求的TCP连接客户端
- */
 extern WiFiClient tcpClient_driver;
 
 // ==================== 定时器系统声明 ====================

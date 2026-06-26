@@ -14,17 +14,8 @@
 #include <Arduino.h>
 #include "Ticker.h"
 
-// ==================== NTP服务器配置 ====================
-
-/**
- * @brief 阿里云NTP服务器地址配置
- * @details 使用多个NTP服务器确保时间同步的可靠性
- *          - NTP1: 主服务器
- *          - NTP2: 备用服务器1
- *          - NTP3: 备用服务器2
- */
 #define NTP1 "ntp1.aliyun.com"
-#define NTP2 "ntp2.aliyun.com" 
+#define NTP2 "ntp2.aliyun.com"
 #define NTP3 "ntp3.aliyun.com"
 
 // ==================== 函数声明 ====================
@@ -60,19 +51,6 @@ void sayHi();
  * @details 每10秒触发一次时间检查
  */
 void time_timer();
-
-// ==================== NTP服务器配置 ====================
-
-/**
- * @brief 阿里云NTP服务器地址配置
- * @details 使用多个NTP服务器确保时间同步的可靠性
- *          - NTP1: 主服务器
- *          - NTP2: 备用服务器1
- *          - NTP3: 备用服务器2
- */
-#define NTP1 "ntp1.aliyun.com"
-#define NTP2 "ntp2.aliyun.com" 
-#define NTP3 "ntp3.aliyun.com"
 
 // ==================== 时间数据结构和变量声明 ====================
 

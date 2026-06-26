@@ -12,6 +12,7 @@
 #include <U8g2_for_Adafruit_GFX.h>
 #include "Ticker.h"
 #include "display.h"
+#include "app_config.h"
 
 // ==================== 电子墨水屏设备定义 ====================
 
@@ -47,11 +48,6 @@ extern int timer_weather;  // 天气更新标志位（定义在getWeather.cpp）
 extern int timer_1;        // 时间更新标志位（定义在getTime.cpp）
 extern int timer_gushi;    // 古诗更新标志位（定义在getGushi.cpp）
 extern int timer_driver;   // 限行更新标志位（定义在getDriver.cpp）
-
-// ==================== 宏定义 ====================
-#ifndef switch_WD
-#define switch_WD 0  // 默认古诗模式，这个宏应该从main.cpp传入
-#endif
 
 // ==================== 函数实现 ====================
 
@@ -134,7 +130,7 @@ void ePaper_flash()
     timer_1 = 2;
     
     // 根据当前模式强制重新绘制右侧内容
-#if switch_WD == 0
+#if APP_MODE == 0
     // 古诗模式：重新绘制古诗
     timer_gushi = 1;
 #else

@@ -9,16 +9,9 @@
 #include "getDriver.h"
 #include "My_information.h"
 #include "display.h"
+#include "ui_helpers.h"
+#include "http_helpers.h"
 #include <ArduinoJson.h>
-
-// ==================== 外部变量声明 ====================
-
-/**
- * @brief 外部变量声明
- * @details 这些变量在getWeather.cpp中定义，这里进行外部声明
- */
-extern String driver_api_tianjin; // 天津限行API URL（定义在getWeather.cpp）
-extern String driver_api_beijing; // 北京限行API URL（定义在getWeather.cpp）
 
 /**
  * @brief HTTP客户端对象（限行专用）
@@ -118,8 +111,6 @@ void analyze_driver_json(String input, String (&data)[4])
     data[2] = restriction_limits_0_memo;     // 限行类型备注
     data[3] = location_name;                 // 城市名称
 
-    // 直接调用显示更新函数
-    update_driver(data);
 }
 
 /**
@@ -129,52 +120,13 @@ void analyze_driver_json(String input, String (&data)[4])
  */
 void getDriver()
 {
-    // 初始化HTTP客户端连接
-    httpClient_driver.begin(tcpClient_driver, driver_api_tianjin);
-    
-    // 发送GET请求
-    int httpCode = httpClient_driver.GET();
-
-    // 检查HTTP响应状态
-    if (httpCode == HTTP_CODE_OK)
+    String payload;
+    if (fetchHttpPayload(httpClient_driver, tcpClient_driver, driver_api_tianjin, payload, "driver"))
     {
-        // 获取服务器响应内容
-        String Payload = httpClient_driver.getString();
-        
-        // 打印调试信息
-        Serial.print("\r\nServer Respose Code: ");
-        Serial.println(httpCode);
-        Serial.println("Server Response Payload: ");
-        Serial.println(Payload);
-        
-        // 解析JSON数据
         String data[4];
-        analyze_driver_json(Payload, data);
-        
-        // 调试输出解析结果
-        Serial.println(data[0]);
-        Serial.println(data[1]);
-        
-        // 判断今日是否限行
-        if (data[0].length() > 0)
-        {
-            Serial.println("今日限行");
-            update_driver(data);
-        }
-        else
-        {
-            Serial.println("今日不限行");
-        }
+        analyze_driver_json(payload, data);
+        update_driver(data);
     }
-    else
-    {
-        // 打印HTTP错误码
-        Serial.print("\r\nServer Respose Code: ");
-        Serial.println(httpCode);
-    }
-    
-    // 关闭HTTP连接
-    httpClient_driver.end();
 }
 
 /**
@@ -188,33 +140,7 @@ void getDriver()
  */
 void update_driver(String data[4])
 {
-    // 设置部分刷新窗口（位置：x=121, y=97, 宽度=175, 高度=31）
-    display.setPartialWindow(121, 97, 175, 31);
-    
-    // 清除显示区域（填充白色背景）
-    display.fillRect(121, 96, 175, 32, GxEPD_WHITE);
-    
-    // 设置字体颜色
-    u8g2Fonts.setForegroundColor(GxEPD_BLACK); // 前景色：黑色
-    u8g2Fonts.setBackgroundColor(GxEPD_WHITE); // 背景色：白色
-    
-    // 设置文本显示位置
-    u8g2Fonts.setCursor(121, 108 + 15);
-    
-    // 根据限行数据显示相应内容
-    if (data[0].length() > 0)
-    {
-        // 有限行信息时显示：城市名+限行类型+限行尾号
-        u8g2Fonts.print(data[3] + data[2] + ": " + data[0] + "  " + data[1]);
-    }
-    else
-    {
-        // 无限行信息时显示不限行提示
-        u8g2Fonts.print(data[3] + "不限行,或获取失败");
-    }
-
-    // 刷新显示内容
-    display.nextPage();
+    renderStatusLine(data[0].length() > 0 ? data[3] + data[2] + ": " + data[0] + "  " + data[1] : data[3] + "不限行,或获取失败");
 }
 
 /**
