@@ -37,7 +37,7 @@ void setup()
   display.fillScreen(GxEPD_WHITE);
   display.firstPage();
   // display.drawInvertedBitmap(0,0,pics[8], 296,128,GxEPD_BLACK);
-  display.drawInvertedBitmap(0, 0, gImage_1, 60, 60, GxEPD_BLACK);
+  display.drawInvertedBitmap(0, 0, gImage_1, 59, 128, GxEPD_BLACK);
   display.nextPage();
 }
 

@@ -1,206 +1,91 @@
-String weather_api = "http://api.seniverse.com/v3/weather/now.json?key="+weather_APIkey+"&location=ip&language=zh-Hans&unit=c";
+/**
+ * @file getWeather.h
+ * @brief 天气信息获取和显示模块
+ * @details 通过心知天气API获取实时天气数据，并在电子墨水屏上显示天气图标、温度、位置和日期信息
+ * @author ESP12S E-Paper Weather Display System
+ * @version 2023.2.23
+ */
 
-HTTPClient httpClient;
-WiFiClient tcpClient;
+#ifndef GET_WEATHER_H
+#define GET_WEATHER_H
 
+#include <Arduino.h>
+#include <ESP8266HTTPClient.h>
+#include <WiFiClient.h>
+#include "Ticker.h"
+#include <time.h>
+#include "network_config.h"
+
+// ==================== HTTP客户端声明 ====================
+extern HTTPClient httpClient;
+extern WiFiClient tcpClient;
+
+// ==================== 定时器系统声明 ====================
+
+/**
+ * @brief 天气更新定时器标志位声明
+ * @details 当值为1时表示需要更新天气信息
+ *          初始值为1确保首次运行时立即获取天气数据
+ */
+extern int timer_weather;
+
+/**
+ * @brief 天气信息定时器对象声明
+ * @details 每20分钟触发一次天气信息更新
+ */
+extern Ticker weather_ticker;
+
+/**
+ * @brief 当前显示的月份记录声明
+ * @details 用于检测日期变化，当检测到月份变化时触发天气和日期显示更新
+ */
+extern int display_day;
+
+// ==================== 外部变量声明 ====================
+
+/**
+ * @brief 外部时间信息声明
+ */
+extern struct tm timeinfo;
+extern int now_day;
+
+// ==================== 函数声明 ====================
+
+/**
+ * @brief 天气模块初始化函数声明
+ * @details 初始化天气显示区域并启动定时器
+ */
+void weather_init();
+
+/**
+ * @brief 主天气获取函数声明
+ * @details 发送HTTP GET请求到心知天气API，获取当前地理位置的实时天气信息
+ */
+void getWeather();
+
+/**
+ * @brief 解析心知天气API返回的JSON数据函数声明
+ * @param input 从API获取的原始JSON字符串
+ * @param data 输出数组，用于存储解析后的天气信息
+ */
+void analyze_weather_json(String input, String (&data)[4]);
+
+/**
+ * @brief 更新天气显示界面函数声明
+ * @param data 包含天气信息的字符串数组 [位置, 天气描述, 天气代码, 温度]
+ */
 void update_weather(String data[4]);
+
+/**
+ * @brief 绘制天气显示区域的基础框架函数声明
+ * @details 清空天气显示区域并绘制分隔线
+ */
 void display_weather();
+
+/**
+ * @brief 天气定时器回调函数声明
+ * @details 由Ticker定时器调用，设置天气更新标志位
+ */
 void timer_weather_con();
 
-int timer_weather = 1;
-
-Ticker weather_ticker;
-
-void analyze_weather_json(String input, String (&data)[4])
-{
-    StaticJsonDocument<512> doc;
-
-    DeserializationError error = deserializeJson(doc, input);
-
-    if (error)
-    {
-        Serial.print(F("deserializeJson() failed: "));
-        Serial.println(error.f_str());
-        return;
-    }
-
-    JsonObject results_0 = doc["results"][0];
-
-    JsonObject results_0_location = results_0["location"];
-    String location_id = results_0_location["id"];                           // "WW92M43YCQG0"
-    String location_name = results_0_location["name"];                       // "邯郸"
-    String location_country = results_0_location["country"];                 // "CN"
-    String location_path = results_0_location["path"];                       // "邯郸,邯郸,河北,中国"
-    String location_timezone = results_0_location["timezone"];               // "Asia/Shanghai"
-    String location_timezone_offset = results_0_location["timezone_offset"]; // "+08:00"
-
-    JsonObject results_0_now = results_0["now"];
-    String now_text = results_0_now["text"];               // "阴"
-    String now_code = results_0_now["code"];               // "9"
-    String now_temperature = results_0_now["temperature"]; // "6"
-
-    String last_update = results_0["last_update"]; // "2023-02-08T16:00:09+08:00"
-
-    data[0] = location_name;
-    data[1] = now_text;
-    data[2] = now_code;
-    data[3] = now_temperature;
-}
-
-void getWeather()
-{
-    httpClient.begin(tcpClient, weather_api);
-    int httpCode = httpClient.GET();
-
-    if (httpCode == HTTP_CODE_OK)
-    {
-        String Payload = httpClient.getString(); // 使用getString函数获取服务器响应体内容
-        Serial.print("\r\nServer Respose Code: ");
-        Serial.println(httpCode);
-        Serial.println("Server Response Payload: ");
-        Serial.println(Payload);
-        /*分析数据*/
-        String data[4];
-        analyze_weather_json(Payload, data);
-        Serial.println(data[0]);
-        Serial.println(data[1]);
-        Serial.println(data[2]);
-        Serial.println(data[3]);
-        update_weather(data);
-    }
-    else
-    {
-        Serial.print("\r\nServer Respose Code: ");
-        Serial.println(httpCode);
-    }
-    /* 关闭ESP8266与服务器的连接 */
-    httpClient.end();
-}
-
-void weather_init()
-{
-    display.setPartialWindow(0, 0, 120, 128);
-    display.fillRect(0, 0, 120, 128, GxEPD_BLACK);
-    display.nextPage();
-    // display_weather();
-    weather_ticker.attach(60*20, timer_weather_con);
-}
-
-void display_weather()
-{
-    display.firstPage();
-    display.setPartialWindow(0, 0, 120, 128);
-    display.fillRect(0, 0, 120, 128, GxEPD_BLACK);
-    display.setRotation(1);
-    display.drawLine(0, 60, 119, 60, 1);
-    display.drawFastHLine(0, 95, 119, 1);
-    // display.nextPage();
-}
-
-void update_weather(String data[4])
-{
-    display_weather();
-    // display.setPartialWindow(0, 0, 120, 128);
-    display.setRotation(1);
-    display.fillRect(30, 0, 60, 60, GxEPD_WHITE);
-    // display.fillRect(0, 75, 20, 20, GxEPD_WHITE);
-    // display.fillRect(0, 108, 20, 100, GxEPD_WHITE);
-    if (data[2] == "0" || data[2] == "2" || data[2] == "38")
-    {
-        display.drawInvertedBitmap(30, 0, qing_d, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "1" || data[2] == "3")
-    {
-        display.drawInvertedBitmap(30, 0, qing_n, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "4" || data[2] == "5" || data[2] == "6" || data[2] == "7" || data[2] == "8")
-    {
-        display.drawInvertedBitmap(30, 0, duoyun, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "9")
-    {
-        display.drawInvertedBitmap(30, 0, yintian, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "10" || data[2] == "13" || data[2] == "14" || data[2] == "15" || data[2] == "16" || data[2] == "17" || data[2] == "18")
-    {
-        display.drawInvertedBitmap(30, 0, zhenyu, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "11" || data[2] == "12")
-    {
-        display.drawInvertedBitmap(30, 0, leizhenyu, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "20" || data[2] == "21" || data[2] == "22" || data[2] == "23" || data[2] == "24" || data[2] == "25" || data[2] == "37")
-    {
-        display.drawInvertedBitmap(30, 0, xiaoxue, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "26" || data[2] == "27")
-    {
-        display.drawInvertedBitmap(30, 0, fuchen, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "28" || data[2] == "29" || data[2] == "32" || data[2] == "33" || data[2] == "36")
-    {
-        display.drawInvertedBitmap(30, 0, feng, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "31" || data[2] == "34" || data[2] == "35")
-    {
-        display.drawInvertedBitmap(30, 0, wu, 60, 60, GxEPD_BLACK);
-    }
-    else if (data[2] == "99")
-    {
-        display.drawInvertedBitmap(30, 0, weizhi, 60, 60, GxEPD_BLACK);
-    }
-
-    u8g2Fonts.setForegroundColor(GxEPD_WHITE); // 设置前景色
-    u8g2Fonts.setBackgroundColor(GxEPD_BLACK); // 设置背景色
-    u8g2Fonts.setCursor(10, 90);
-    u8g2Fonts.print(data[0]+" "+data[1]+" "+data[3]+"℃");
-    // u8g2Fonts.setCursor(20, 108 + 15);
-
-    /*更新日期*/
-    if (timeinfo.tm_mday || now_day)
-    {
-        now_day = timeinfo.tm_mday;
-        now_mon = timeinfo.tm_mon;
-        now_week = timeinfo.tm_wday;
-        u8g2Fonts.setForegroundColor(GxEPD_WHITE); // 设置前景色
-        u8g2Fonts.setBackgroundColor(GxEPD_BLACK); // 设置背景色
-        u8g2Fonts.setCursor(10, 108 + 15);
-        String week_day;
-        switch (timeinfo.tm_wday)
-        {
-        case 0:
-            week_day = "周日";
-            break;
-        case 1:
-            week_day = "周一";
-            break;
-        case 2:
-            week_day = "周二";
-            break;
-        case 3:
-            week_day = "周三";
-            break;
-        case 4:
-            week_day = "周四";
-            break;
-        case 5:
-            week_day = "周五";
-            break;
-        case 6:
-            week_day = "周六";
-            break;
-        default:
-            week_day = "未知";
-            break;
-        }
-        u8g2Fonts.print(String(timeinfo.tm_mon+1)+"月 "+String(timeinfo.tm_mday)+"日 "+week_day);
-    }
-
-    display.nextPage();
-}
-
-void timer_weather_con()
-{
-    Serial.println("update weather !");
-    timer_weather = 1;
-}
+#endif // GET_WEATHER_H
