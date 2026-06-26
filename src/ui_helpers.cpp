@@ -5,7 +5,7 @@
 namespace
 {
 const uint8_t *const adaptiveFonts[] = {
-    u8g2_font_wqy14_t_gb2312b,
+    u8g2_font_wqy16_t_gb2312b,
     u8g2_font_wqy12_t_gb2312b,
 };
 
