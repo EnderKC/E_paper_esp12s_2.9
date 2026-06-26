@@ -46,8 +46,12 @@ int timer_ePaper_flash = 0;
 // 这些变量在其他源文件中定义，这里进行声明以便使用
 extern int timer_weather;  // 天气更新标志位（定义在getWeather.cpp）
 extern int timer_1;        // 时间更新标志位（定义在getTime.cpp）
+#if APP_MODE == 0
 extern int timer_gushi;    // 古诗更新标志位（定义在getGushi.cpp）
+#endif
+#if APP_MODE == 1
 extern int timer_driver;   // 限行更新标志位（定义在getDriver.cpp）
+#endif
 
 // ==================== 函数实现 ====================
 
@@ -133,7 +137,7 @@ void ePaper_flash()
 #if APP_MODE == 0
     // 古诗模式：重新绘制古诗
     timer_gushi = 1;
-#else
+#elif APP_MODE == 1
     // 限行模式：重新绘制限行信息
     timer_driver = 1;
 #endif
