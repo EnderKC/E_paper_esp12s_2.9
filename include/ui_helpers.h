@@ -4,6 +4,7 @@
 #include <Arduino.h>
 
 void drawStatusPanel(int x, int y, int w, int h, const String &text);
+void drawAdaptiveTextPanel(int x, int y, int w, int h, const String &text);
 String formatWeekday(int weekday);
 void renderStatusLine(const String &text);
 

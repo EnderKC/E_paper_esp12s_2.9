@@ -66,11 +66,11 @@ void handleMqttMessage(char *topic, byte *payload, unsigned int length)
 
     if (topicText == mqtt_command_topic || topicText == mqtt_state_topic)
     {
-        drawStatusPanel(121, 96, 175, 32, message);
+        drawAdaptiveTextPanel(121, 96, 175, 32, message);
         return;
     }
 
-    drawStatusPanel(121, 96, 175, 32, topicText.length() ? topicText + ": " + message : message);
+    drawAdaptiveTextPanel(121, 96, 175, 32, topicText.length() ? topicText + ": " + message : message);
 }
 
 bool connectToMQTTBroker()
