@@ -8,6 +8,10 @@
 namespace
 {
 const uint16_t mqtt_port = 8883;
+const int mqtt_status_x = 0;
+const int mqtt_status_y = 96;
+const int mqtt_status_w = 296;
+const int mqtt_status_h = 32;
 
 static const char mqtt_ca_cert[] PROGMEM = R"EOF(
 -----BEGIN CERTIFICATE-----
@@ -66,11 +70,11 @@ void handleMqttMessage(char *topic, byte *payload, unsigned int length)
 
     if (topicText == mqtt_command_topic || topicText == mqtt_state_topic)
     {
-        drawAdaptiveTextPanel(121, 96, 175, 32, message);
+        drawAdaptiveTextPanel(mqtt_status_x, mqtt_status_y, mqtt_status_w, mqtt_status_h, message);
         return;
     }
 
-    drawAdaptiveTextPanel(121, 96, 175, 32, topicText.length() ? topicText + ": " + message : message);
+    drawAdaptiveTextPanel(mqtt_status_x, mqtt_status_y, mqtt_status_w, mqtt_status_h, topicText.length() ? topicText + ": " + message : message);
 }
 
 bool connectToMQTTBroker()
