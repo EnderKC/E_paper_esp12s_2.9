@@ -41,6 +41,17 @@ jobs:
       - name: Prepare default secrets
         run: cp include/secrets.example.h include/secrets.h
 
+      - name: Prepare build version
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          cat > include/build_version.h <<EOF
+          #ifndef BUILD_VERSION_H
+          #define BUILD_VERSION_H
+          #define APP_VERSION "${VERSION}"
+          #endif // BUILD_VERSION_H
+          EOF
+
       - name: Build firmware
         run: pio run -e esp12e
 

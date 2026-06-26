@@ -29,6 +29,7 @@
 #include "getDriver.h"             // 车辆限行信息获取模块
 #include "mqtt.h"                  // MQTT通信模块
 #include "app_config.h"
+#include "ota_update.h"
 
 /**
  * @brief 系统版本更新日志
@@ -70,6 +71,7 @@ void setup()
 {
     ePaper_init();    // 初始化电子墨水屏显示模块
     initWifiManager(); // 初始化WiFi管理器，提供连接配置界面
+    checkForFirmwareUpdate(true); // 联网后主动检查固件更新
     time_init();      // 初始化NTP时间同步，每10秒检查一次
     weather_init();   // 初始化天气信息获取，20分钟刷新一次
     ePaper_flash_init();// 初始化墨水屏全局刷新，30分钟刷新一次
@@ -99,6 +101,8 @@ void setup()
  */
 void loop()
 {
+    checkForFirmwareUpdate();
+
     // 时间显示更新检查（频率：每10秒）
     if (timer_1 == 1)
     {
