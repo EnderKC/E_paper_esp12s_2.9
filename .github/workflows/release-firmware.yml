@@ -1,0 +1,122 @@
+name: Build and Release Firmware
+
+on:
+  push:
+    branches:
+      - master
+      - dev
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  firmware:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio/.cache
+          key: ${{ runner.os }}-platformio-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-platformio-
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Install PlatformIO Core
+        run: pip install --upgrade platformio
+
+      - name: Build firmware
+        run: pio run -e esp12e
+
+      - name: Prepare firmware artifacts
+        env:
+          REPOSITORY: ${{ github.repository }}
+          VERSION: ${{ github.ref_name }}
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/') }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p artifacts
+          cp .pio/build/esp12e/firmware.bin artifacts/firmware.bin
+
+          python3 - <<'PY'
+          import hashlib
+          import json
+          import os
+          from pathlib import Path
+
+          firmware = Path("artifacts/firmware.bin")
+          data = firmware.read_bytes()
+          version = os.environ["VERSION"]
+          repository = os.environ["REPOSITORY"]
+
+          if os.environ["IS_TAG"] == "true":
+              bin_url = f"https://github.com/{repository}/releases/download/{version}/firmware.bin"
+          else:
+              bin_url = ""
+
+          md5 = hashlib.md5(data).hexdigest()
+          sha256 = hashlib.sha256(data).hexdigest()
+
+          manifest = {
+              "version": version,
+              "commit": os.environ["SHA"],
+              "bin": bin_url,
+              "size": len(data),
+              "md5": md5,
+              "sha256": sha256,
+          }
+
+          Path("artifacts/manifest.json").write_text(
+              json.dumps(manifest, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          Path("artifacts/firmware.md5").write_text(
+              f"{md5}  firmware.bin\n",
+              encoding="utf-8",
+          )
+          PY
+
+          {
+            echo "Firmware build for ${VERSION}"
+            echo
+            echo "- Commit: ${SHA}"
+            echo "- Artifact: firmware.bin"
+          } > artifacts/release-notes.md
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-${{ github.ref_name }}
+          path: |
+            artifacts/firmware.bin
+            artifacts/manifest.json
+            artifacts/firmware.md5
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          gh release create "${VERSION}" \
+            artifacts/firmware.bin \
+            artifacts/manifest.json \
+            artifacts/firmware.md5 \
+            --title "${VERSION}" \
+            --notes-file artifacts/release-notes.md
