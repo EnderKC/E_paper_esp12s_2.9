@@ -52,6 +52,77 @@ int now_week = 0;
 int now_mon = 0;
 int now_day = 0;
 
+namespace
+{
+const int time_area_x = 119;
+const int time_area_y = 0;
+const int time_area_w = 177;
+const int time_area_h = 95;
+const int time_refresh_cleanup_interval = 10;
+
+int time_update_count = 0;
+
+void clear_time_area(uint16_t color)
+{
+    display.setPartialWindow(time_area_x, time_area_y, time_area_w, time_area_h);
+    display.firstPage();
+    do
+    {
+        display.fillRect(time_area_x, time_area_y, time_area_w, time_area_h, color);
+    } while (display.nextPage());
+}
+
+void refresh_time_area_if_needed()
+{
+    ++time_update_count;
+    if (time_update_count < time_refresh_cleanup_interval)
+        return;
+
+    time_update_count = 0;
+    clear_time_area(GxEPD_BLACK);
+    delay(200);
+    clear_time_area(GxEPD_WHITE);
+}
+
+void draw_time_content(int hours, int min)
+{
+    display.fillRect(time_area_x, time_area_y, time_area_w, time_area_h, GxEPD_WHITE);
+    display.drawRect(time_area_x, time_area_y, time_area_w, time_area_h, GxEPD_BLACK);
+
+    int hours_f, hours_b;
+    if (hours < 10)
+    {
+        hours_f = 0;
+        hours_b = hours;
+    }
+    else
+    {
+        hours_f = hours / 10;
+        hours_b = hours % 10;
+    }
+
+    num_time(124, 17, hours_f);
+    num_time(159, 17, hours_b);
+    display.fillCircle(207, 37, 3, GxEPD_BLACK);
+    display.fillCircle(207, 56, 3, GxEPD_BLACK);
+
+    int min_f, min_b;
+    if (min < 10)
+    {
+        min_f = 0;
+        min_b = min;
+    }
+    else
+    {
+        min_f = min / 10;
+        min_b = min % 10;
+    }
+
+    num_time(225, 17, min_f);
+    num_time(260, 17, min_b);
+}
+}
+
 // ==================== 函数实现 ====================
 
 /**
@@ -66,15 +137,15 @@ void time_init()
     getLocalTime(&timeinfo);
     /*区域初始化*/
     display.fillScreen(GxEPD_WHITE);
-    display.setPartialWindow(119, 0, 177, 95);
-    display.fillRect(119, 0, 177, 95, GxEPD_BLACK);
+    display.setPartialWindow(time_area_x, time_area_y, time_area_w, time_area_h);
+    display.fillRect(time_area_x, time_area_y, time_area_w, time_area_h, GxEPD_BLACK);
     // display.updateWindow(119, 0, 177, 90, true);
     display.nextPage();
     delay(500); // 程序暂停2秒
-    display.fillRect(119, 0, 177, 95, GxEPD_WHITE);
+    display.fillRect(time_area_x, time_area_y, time_area_w, time_area_h, GxEPD_WHITE);
     display.nextPage();
     delay(500); // 程序暂停2秒
-    display.drawRect(119, 0, 177, 95, GxEPD_BLACK);
+    display.drawRect(time_area_x, time_area_y, time_area_w, time_area_h, GxEPD_BLACK);
     display.nextPage();
     time_ticker.attach(10, time_timer); // 每隔10s更新一次时间
 }
@@ -129,44 +200,15 @@ void force_update_time()
  */
 void time_update()
 {
-    display.setPartialWindow(119, 0, 177, 95);
-    display.firstPage();
-    display.drawRect(119, 0, 177, 95, GxEPD_BLACK);
     int hours = timeinfo.tm_hour;
     int min = timeinfo.tm_min;
+    refresh_time_area_if_needed();
+
+    display.setPartialWindow(time_area_x, time_area_y, time_area_w, time_area_h);
+    display.firstPage();
     do
     {
-        /*前两位数字*/
-        int hours_f, hours_b;
-        if (hours < 10)
-        {
-            hours_f = 0;
-            hours_b = hours;
-        }
-        else
-        {
-            hours_f = hours / 10;
-            hours_b = hours % 10;
-        }
-        num_time(124, 17, hours_f);
-        num_time(159, 17, hours_b);
-        /*中间点点*/
-        display.fillCircle(207, 37, 3, GxEPD_BLACK);
-        display.fillCircle(207, 56, 3, GxEPD_BLACK);
-        /*后两位数字*/
-        int min_f, min_b;
-        if (min < 10)
-        {
-            min_f = 0;
-            min_b = min;
-        }
-        else
-        {
-            min_f = min / 10;
-            min_b = min % 10;
-        }
-        num_time(225, 17, min_f);
-        num_time(260, 17, min_b);
+        draw_time_content(hours, min);
     } while (display.nextPage());
 
     Serial.println(hours);
