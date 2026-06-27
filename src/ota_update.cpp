@@ -110,11 +110,15 @@ bool fetchManifest(String &payload)
 {
     payload = "";
 
+    Serial.printf("OTA manifest URL: %s\n", OTA_MANIFEST_URL);
+
     BearSSL::WiFiClientSecure otaClient;
     otaClient.setInsecure();
 
     HTTPClient http;
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+    http.setRedirectLimit(5);
+    http.setTimeout(15000);
     if (!http.begin(otaClient, OTA_MANIFEST_URL))
     {
         Serial.println("OTA manifest HTTP begin failed");
@@ -122,14 +126,28 @@ bool fetchManifest(String &payload)
     }
 
     const int httpCode = http.GET();
+    Serial.printf("OTA manifest HTTP code: %d\n", httpCode);
     if (httpCode != HTTP_CODE_OK)
     {
-        Serial.printf("OTA manifest HTTP failed, code=%d\n", httpCode);
+        Serial.printf("OTA manifest HTTP failed, code=%d, error=%s\n",
+                      httpCode,
+                      http.errorToString(httpCode).c_str());
+        const String errorPayload = http.getString();
+        if (errorPayload.length())
+        {
+            Serial.printf("OTA manifest error body length: %u\n", errorPayload.length());
+            Serial.printf("OTA manifest error body head: %.160s\n", errorPayload.c_str());
+        }
         http.end();
         return false;
     }
 
     payload = http.getString();
+    Serial.printf("OTA manifest payload length: %u\n", payload.length());
+    if (payload.length())
+    {
+        Serial.printf("OTA manifest payload head: %.160s\n", payload.c_str());
+    }
     http.end();
     return payload.length() > 0;
 }
@@ -147,6 +165,10 @@ bool parseManifest(const String &payload, String &version, String &binUrl, Strin
     version = doc["version"] | "";
     binUrl = doc["bin"] | "";
     md5 = doc["md5"] | "";
+
+    Serial.printf("OTA manifest version: %s\n", version.c_str());
+    Serial.printf("OTA manifest bin: %s\n", binUrl.c_str());
+    Serial.printf("OTA manifest md5: %s\n", md5.length() ? md5.c_str() : "<none>");
 
     if (!version.length() || !binUrl.length())
     {
@@ -184,10 +206,16 @@ bool runHttpUpdate(const String &binUrl, const String &md5)
     if (md5.length())
     {
         ESPhttpUpdate.setMD5sum(md5);
+        Serial.printf("OTA expected MD5: %s\n", md5.c_str());
+    }
+    else
+    {
+        Serial.println("OTA expected MD5: <none>");
     }
 
     Serial.printf("OTA downloading %s\n", binUrl.c_str());
     const t_httpUpdate_return result = ESPhttpUpdate.update(otaClient, binUrl, APP_VERSION);
+    Serial.printf("OTA update result: %d\n", result);
 
     switch (result)
     {
@@ -217,6 +245,9 @@ bool isNewFirmwareVersion(const String &currentVersion, const String &remoteVers
 
 void checkForFirmwareUpdate(bool force)
 {
+    Serial.printf("OTA check requested, force=%s, wifi=%s\n",
+                  force ? "true" : "false",
+                  WiFi.isConnected() ? "connected" : "disconnected");
     if (!WiFi.isConnected())
     {
         return;
@@ -235,6 +266,8 @@ void checkForFirmwareUpdate(bool force)
     const unsigned long now = millis();
     if (!force && lastOtaCheck != 0 && now - lastOtaCheck < otaCheckIntervalMs)
     {
+        Serial.printf("OTA check skipped, next check in %lu ms\n",
+                      otaCheckIntervalMs - (now - lastOtaCheck));
         return;
     }
     lastOtaCheck = now;
@@ -259,6 +292,10 @@ void checkForFirmwareUpdate(bool force)
     }
 
     Serial.printf("OTA remote version: %s\n", remoteVersion.c_str());
+    Serial.printf("OTA version comparison: current=%s, remote=%s, shouldUpdate=%s\n",
+                  APP_VERSION,
+                  remoteVersion.c_str(),
+                  isNewFirmwareVersion(APP_VERSION, remoteVersion) ? "true" : "false");
     if (!isNewFirmwareVersion(APP_VERSION, remoteVersion))
     {
         Serial.println("OTA already up to date");

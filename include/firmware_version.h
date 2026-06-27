@@ -4,7 +4,7 @@
 #include "version_config.h"
 
 #ifndef OTA_MANIFEST_URL
-#define OTA_MANIFEST_URL "https://github.com/EnderKC/E_paper_esp12s_2.9/releases/latest/download/manifest.json"
+#define OTA_MANIFEST_URL "https://gitee.com/enderkc/e_paper_esp12s_2.9/releases/latest/download/manifest.json"
 #endif
 
 #endif // FIRMWARE_VERSION_H
