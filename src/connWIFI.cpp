@@ -83,6 +83,42 @@ static const unsigned char wifi_img[] PROGMEM = {
     0x00, 0x3c, 0x07, 0x9f, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff
 };
 
+void drawWifiConfigPage()
+{
+    display.setFullWindow();
+    display.firstPage();
+    do
+    {
+        display.fillScreen(GxEPD_WHITE);
+        display.fillRect(0, 0, 296, 24, GxEPD_BLACK);
+        display.drawRect(0, 0, 296, 128, GxEPD_BLACK);
+
+        u8g2Fonts.setFont(u8g2_font_wqy12_t_gb2312b);
+        u8g2Fonts.setForegroundColor(GxEPD_WHITE);
+        u8g2Fonts.setBackgroundColor(GxEPD_BLACK);
+        u8g2Fonts.setCursor(10, 17);
+        u8g2Fonts.print("WiFi 配网");
+
+        u8g2Fonts.setForegroundColor(GxEPD_BLACK);
+        u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
+        u8g2Fonts.setCursor(10, 42);
+        u8g2Fonts.print("1 连接热点 E_paperWifi");
+        u8g2Fonts.setCursor(10, 60);
+        u8g2Fonts.print("2 扫码或打开 192.168.4.25");
+        u8g2Fonts.setCursor(10, 78);
+        u8g2Fonts.print("3 填写 WiFi 和各项 Key");
+        u8g2Fonts.setCursor(10, 96);
+        u8g2Fonts.print("   天气 / MQTT / 位置等配置");
+
+        display.drawRect(192, 27, 100, 100, GxEPD_BLACK);
+        display.drawInvertedBitmap(194, 29, wifi_img, 96, 96, GxEPD_BLACK);
+
+        display.drawFastHLine(10, 108, 170, GxEPD_BLACK);
+        u8g2Fonts.setCursor(10, 123);
+        u8g2Fonts.print("保存后设备会自动连接");
+    } while (display.nextPage());
+}
+
 void initWifiManager()
 {
     WiFiManager wifiManager;
@@ -115,15 +151,7 @@ void initWifiManager()
     // wifiManager.resetSettings();
     // ESP.eraseConfig();
 
-    display.fillScreen(GxEPD_WHITE);
-    u8g2Fonts.setForegroundColor(GxEPD_BLACK);
-    u8g2Fonts.setBackgroundColor(GxEPD_WHITE);
-    u8g2Fonts.setCursor(0, 16);
-    u8g2Fonts.println("WIFI配置界面[EnderKC]\n");
-    u8g2Fonts.println("扫描二维码\n");
-    u8g2Fonts.println("输入192.168.4.25\n");
-    display.drawInvertedBitmap(180, 16, wifi_img, 96, 96, GxEPD_BLACK);
-    display.nextPage();
+    drawWifiConfigPage();
 
     wifiManager.setDebugOutput(true);
     wifiManager.setAPStaticIPConfig(apIp, apGateway, apSubnet);

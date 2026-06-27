@@ -14,13 +14,21 @@ namespace
 const unsigned long otaCheckIntervalMs = 6UL * 60UL * 60UL * 1000UL;
 unsigned long lastOtaCheck = 0;
 unsigned long otaProgressStartedAt = 0;
+unsigned long otaLastProgressLogAt = 0;
 unsigned long otaLastProgressDrawAt = 0;
+int otaLastLoggedPercent = -1;
 int otaLastDrawnPercent = -1;
 bool nonReleaseSkipLogged = false;
 
 bool isReleaseVersion()
 {
     return APP_VERSION[0] == 'v';
+}
+
+void configureOtaTlsClient(BearSSL::WiFiClientSecure &client)
+{
+    client.setInsecure();
+    client.setBufferSizes(4096, 512);
 }
 
 void drawOtaPage(const char *title, const char *line1 = "", const char *line2 = "")
@@ -46,6 +54,13 @@ void drawOtaPage(const char *title, const char *line1 = "", const char *line2 = 
         u8g2Fonts.setCursor(10, 74);
         u8g2Fonts.print(line2);
     } while (display.nextPage());
+}
+
+void finishOtaCheckWithRefresh(const char *title, const char *line1, const char *line2 = "")
+{
+    drawOtaPage(title, line1, line2);
+    delay(1000);
+    ePaper_flash();
 }
 
 void drawOtaProgress(int percent, int current, int total)
@@ -84,6 +99,27 @@ void drawOtaProgress(int percent, int current, int total)
     } while (display.nextPage());
 }
 
+void maybeDrawUpdateProgress(int percent, int current, int total)
+{
+    const unsigned long now = millis();
+    const bool firstDraw = otaLastDrawnPercent < 0;
+    const bool reachedNextStep = percent >= otaLastDrawnPercent + 10;
+    const bool finished = percent >= 100;
+
+    if (!firstDraw && !finished && !reachedNextStep)
+    {
+        return;
+    }
+    if (!firstDraw && !finished && now - otaLastProgressDrawAt < 5000)
+    {
+        return;
+    }
+
+    otaLastDrawnPercent = percent;
+    otaLastProgressDrawAt = now;
+    drawOtaProgress(percent, current, total);
+}
+
 void handleUpdateProgress(int current, int total)
 {
     if (total <= 0)
@@ -93,17 +129,29 @@ void handleUpdateProgress(int current, int total)
 
     const int percent = constrain((current * 100) / total, 0, 100);
     const unsigned long now = millis();
-    if (otaLastDrawnPercent >= 0 &&
-        percent < otaLastDrawnPercent + 5 &&
-        now - otaLastProgressDrawAt < 2000 &&
+    if (otaLastLoggedPercent >= 0 &&
+        percent < otaLastLoggedPercent + 5 &&
+        now - otaLastProgressLogAt < 2000 &&
         percent < 100)
     {
         return;
     }
 
-    otaLastDrawnPercent = percent;
-    otaLastProgressDrawAt = now;
-    drawOtaProgress(percent, current, total);
+    otaLastLoggedPercent = percent;
+    otaLastProgressLogAt = now;
+
+    const unsigned long elapsed = now - otaProgressStartedAt;
+    const float speedKbps = elapsed > 0 ? (current / 1024.0f) / (elapsed / 1000.0f) : 0.0f;
+    Serial.printf("OTA update progress: %d%%, %d/%d bytes, %.1f KB/s, heap=%u, maxBlock=%u, frag=%u%%\n",
+                  percent,
+                  current,
+                  total,
+                  speedKbps,
+                  ESP.getFreeHeap(),
+                  ESP.getMaxFreeBlockSize(),
+                  ESP.getHeapFragmentation());
+
+    maybeDrawUpdateProgress(percent, current, total);
 }
 
 bool findAssetUrlByName(JsonArrayConst assets, const char *assetName, String &assetUrl)
@@ -159,7 +207,7 @@ bool fetchUrlPayload(const String &url, const char *label, String &payload)
     Serial.printf("OTA %s URL: %s\n", label, url.c_str());
 
     BearSSL::WiFiClientSecure otaClient;
-    otaClient.setInsecure();
+    configureOtaTlsClient(otaClient);
 
     HTTPClient http;
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
@@ -199,7 +247,7 @@ bool fetchUrlPayload(const String &url, const char *label, String &payload)
     return payload.length() > 0;
 }
 
-bool parseManifest(const String &payload, String &version, String &binUrl, String &md5)
+bool parseManifest(const String &payload, String &version, String &binUrl, String &md5, uint32_t &binSize)
 {
     JsonDocument doc;
     const DeserializationError error = deserializeJson(doc, payload);
@@ -212,9 +260,11 @@ bool parseManifest(const String &payload, String &version, String &binUrl, Strin
     version = doc["version"] | "";
     binUrl = doc["bin"] | "";
     md5 = doc["md5"] | "";
+    binSize = doc["size"] | 0UL;
 
     Serial.printf("OTA manifest version: %s\n", version.c_str());
     Serial.printf("OTA manifest bin: %s\n", binUrl.c_str());
+    Serial.printf("OTA manifest size: %u\n", binSize);
     Serial.printf("OTA manifest md5: %s\n", md5.length() ? md5.c_str() : "<none>");
 
     if (!version.length() || !binUrl.length())
@@ -226,28 +276,49 @@ bool parseManifest(const String &payload, String &version, String &binUrl, Strin
     return true;
 }
 
-bool runHttpUpdate(const String &binUrl, const String &md5)
+void logOtaRuntimeInfo(uint32_t expectedSize)
+{
+    Serial.printf("OTA runtime flash size: sketch=%u, freeSketch=%u, expectedBin=%u\n",
+                  ESP.getSketchSize(),
+                  ESP.getFreeSketchSpace(),
+                  expectedSize);
+    Serial.printf("OTA runtime heap: free=%u, maxBlock=%u, fragmentation=%u%%\n",
+                  ESP.getFreeHeap(),
+                  ESP.getMaxFreeBlockSize(),
+                  ESP.getHeapFragmentation());
+}
+
+bool runHttpUpdate(const String &binUrl, const String &md5, uint32_t expectedSize)
 {
     BearSSL::WiFiClientSecure otaClient;
-    otaClient.setInsecure();
+    configureOtaTlsClient(otaClient);
 
     otaProgressStartedAt = millis();
+    otaLastProgressLogAt = 0;
     otaLastProgressDrawAt = 0;
+    otaLastLoggedPercent = -1;
     otaLastDrawnPercent = -1;
+
+    logOtaRuntimeInfo(expectedSize);
+    if (expectedSize > 0 && expectedSize > ESP.getFreeSketchSpace())
+    {
+        Serial.printf("OTA skipped, not enough sketch space: expected=%u, free=%u\n",
+                      expectedSize,
+                      ESP.getFreeSketchSpace());
+        return false;
+    }
 
     ESPhttpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     ESPhttpUpdate.setClientTimeout(15000);
     ESPhttpUpdate.onProgress(handleUpdateProgress);
     ESPhttpUpdate.onStart([]() {
-        drawOtaPage("正在更新固件", "准备下载固件...", "请勿断电");
+        Serial.println("OTA update started");
     });
     ESPhttpUpdate.onError([](int error) {
-        char errorLine[32];
-        snprintf(errorLine, sizeof(errorLine), "错误码: %d", error);
-        drawOtaPage("固件更新失败", errorLine, "稍后会再次检查");
+        Serial.printf("OTA update error callback: %d\n", error);
     });
     ESPhttpUpdate.onEnd([]() {
-        drawOtaPage("固件更新完成", "设备即将重启", "");
+        Serial.println("OTA update finished, restarting");
     });
 
     if (md5.length())
@@ -292,11 +363,12 @@ bool isNewFirmwareVersion(const String &currentVersion, const String &remoteVers
 
 void checkForFirmwareUpdate(bool force)
 {
-    Serial.printf("OTA check requested, force=%s, wifi=%s\n",
-                  force ? "true" : "false",
-                  WiFi.isConnected() ? "connected" : "disconnected");
     if (!WiFi.isConnected())
     {
+        if (force)
+        {
+            Serial.println("OTA check requested, force=true, wifi=disconnected");
+        }
         return;
     }
 
@@ -313,44 +385,49 @@ void checkForFirmwareUpdate(bool force)
     const unsigned long now = millis();
     if (!force && lastOtaCheck != 0 && now - lastOtaCheck < otaCheckIntervalMs)
     {
-        Serial.printf("OTA check skipped, next check in %lu ms\n",
-                      otaCheckIntervalMs - (now - lastOtaCheck));
         return;
     }
     lastOtaCheck = now;
 
+    Serial.printf("OTA check requested, force=%s, wifi=connected\n",
+                  force ? "true" : "false");
     Serial.printf("OTA current version: %s\n", APP_VERSION);
     drawOtaPage("检查固件更新", APP_VERSION, "正在连接更新服务器...");
 
-    String releasePayload;
-    if (!fetchUrlPayload(OTA_RELEASE_API_URL, "release", releasePayload))
-    {
-        drawOtaPage("检查更新失败", "无法获取版本信息", "稍后会再次检查");
-        return;
-    }
-
     String latestReleaseVersion;
     String manifestUrl;
-    if (!parseLatestRelease(releasePayload, latestReleaseVersion, manifestUrl))
     {
-        drawOtaPage("检查更新失败", "版本接口无效", "稍后会再次检查");
-        return;
-    }
+        String releasePayload;
+        if (!fetchUrlPayload(OTA_RELEASE_API_URL, "release", releasePayload))
+        {
+            finishOtaCheckWithRefresh("检查更新失败", "无法获取版本信息", "稍后会再次检查");
+            return;
+        }
 
-    String payload;
-    if (!fetchUrlPayload(manifestUrl, "manifest", payload))
-    {
-        drawOtaPage("检查更新失败", "无法获取固件清单", "稍后会再次检查");
-        return;
+        if (!parseLatestRelease(releasePayload, latestReleaseVersion, manifestUrl))
+        {
+            finishOtaCheckWithRefresh("检查更新失败", "版本接口无效", "稍后会再次检查");
+            return;
+        }
     }
 
     String remoteVersion;
     String binUrl;
     String md5;
-    if (!parseManifest(payload, remoteVersion, binUrl, md5))
+    uint32_t binSize = 0;
     {
-        drawOtaPage("检查更新失败", "版本信息无效", "稍后会再次检查");
-        return;
+        String payload;
+        if (!fetchUrlPayload(manifestUrl, "manifest", payload))
+        {
+            finishOtaCheckWithRefresh("检查更新失败", "无法获取固件清单", "稍后会再次检查");
+            return;
+        }
+
+        if (!parseManifest(payload, remoteVersion, binUrl, md5, binSize))
+        {
+            finishOtaCheckWithRefresh("检查更新失败", "版本信息无效", "稍后会再次检查");
+            return;
+        }
     }
 
     Serial.printf("OTA remote version: %s\n", remoteVersion.c_str());
@@ -361,11 +438,13 @@ void checkForFirmwareUpdate(bool force)
     if (!isNewFirmwareVersion(APP_VERSION, remoteVersion))
     {
         Serial.println("OTA already up to date");
-        drawOtaPage("固件已是最新", APP_VERSION, remoteVersion.c_str());
-        delay(1000);
+        finishOtaCheckWithRefresh("固件已是最新", APP_VERSION, remoteVersion.c_str());
         return;
     }
 
     drawOtaPage("发现新版本", remoteVersion.c_str(), "开始下载固件...");
-    runHttpUpdate(binUrl, md5);
+    if (!runHttpUpdate(binUrl, md5, binSize))
+    {
+        finishOtaCheckWithRefresh("固件更新失败", "稍后会再次检查", "");
+    }
 }
