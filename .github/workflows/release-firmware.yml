@@ -6,6 +6,7 @@ on:
       - master
     paths:
       - include/version_config.h
+      - .github/workflows/release-firmware.yml
   workflow_dispatch:
 
 permissions:
@@ -85,34 +86,26 @@ jobs:
           echo "Previous firmware version: ${previous_version:-<none>}"
           echo "Version changed: ${changed}"
 
-      - name: Stop when version is unchanged
-        if: steps.version.outputs.changed != 'true'
-        run: echo "include/version_config.h changed, but APP_VERSION did not change. Skipping release."
-
-      - name: Check release does not exist
-        if: steps.version.outputs.changed == 'true'
+      - name: Check GitHub release state
+        id: github_release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           if gh release view "${VERSION}" >/dev/null 2>&1; then
-            echo "Release ${VERSION} already exists" >&2
-            exit 1
-          fi
-          if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
-            echo "Tag ${VERSION} already exists" >&2
-            exit 1
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+            echo "GitHub Release ${VERSION} already exists; build will continue for artifact/Gitee sync."
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
           fi
 
       - name: Build firmware
-        if: steps.version.outputs.changed == 'true'
         run: pio run -e esp12e
 
       - name: Prepare firmware artifacts
-        if: steps.version.outputs.changed == 'true'
         env:
-          REPOSITORY: ${{ github.repository }}
+          GITEE_REPOSITORY: enderkc/e_paper_esp12s_2.9
           VERSION: ${{ steps.version.outputs.version }}
           SHA: ${{ github.sha }}
         run: |
@@ -130,8 +123,8 @@ jobs:
           firmware = Path("artifacts/firmware.bin")
           data = firmware.read_bytes()
           version = os.environ["VERSION"]
-          repository = os.environ["REPOSITORY"]
-          bin_url = f"https://github.com/{repository}/releases/download/{version}/firmware.bin"
+          gitee_repository = os.environ["GITEE_REPOSITORY"]
+          bin_url = f"https://gitee.com/{gitee_repository}/releases/download/{version}/firmware.bin"
 
           md5 = hashlib.md5(data).hexdigest()
           sha256 = hashlib.sha256(data).hexdigest()
@@ -163,7 +156,6 @@ jobs:
           } > artifacts/release-notes.md
 
       - name: Upload build artifact
-        if: steps.version.outputs.changed == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: firmware-${{ steps.version.outputs.version }}
@@ -173,7 +165,7 @@ jobs:
             artifacts/firmware.md5
 
       - name: Create GitHub Release
-        if: steps.version.outputs.changed == 'true'
+        if: steps.github_release.outputs.exists != 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
@@ -186,3 +178,18 @@ jobs:
             --target "${GITHUB_SHA}" \
             --title "${VERSION}" \
             --notes-file artifacts/release-notes.md
+
+      - name: Sync Gitee Release
+        uses: nicennnnnnnlee/action-gitee-release@master
+        with:
+          gitee_owner: enderkc
+          gitee_repo: e_paper_esp12s_2.9
+          gitee_token: ${{ secrets.GITEE_TOKEN }}
+          gitee_tag_name: ${{ steps.version.outputs.version }}
+          gitee_release_name: ${{ steps.version.outputs.version }}
+          gitee_release_body: artifacts/release-notes.md
+          gitee_target_commitish: master
+          gitee_files: |
+            artifacts/firmware.bin
+            artifacts/manifest.json
+            artifacts/firmware.md5
