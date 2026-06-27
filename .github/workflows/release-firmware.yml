@@ -182,6 +182,7 @@ jobs:
       - name: Sync Gitee Release
         uses: nicennnnnnnlee/action-gitee-release@master
         with:
+          gitee_action: create_release
           gitee_owner: enderkc
           gitee_repo: e_paper_esp12s_2.9
           gitee_token: ${{ secrets.GITEE_TOKEN }}
