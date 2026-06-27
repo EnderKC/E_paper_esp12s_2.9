@@ -136,7 +136,7 @@ bool fetchManifest(String &payload)
 
 bool parseManifest(const String &payload, String &version, String &binUrl, String &md5)
 {
-    StaticJsonDocument<512> doc;
+    JsonDocument doc;
     const DeserializationError error = deserializeJson(doc, payload);
     if (error)
     {

@@ -3,6 +3,9 @@
 #include <WiFiManager.h>
 #include "display.h"
 #include "connWIFI.h"
+#include "mqtt.h"
+#include "network_config.h"
+#include "runtime_config.h"
 
 static const unsigned char wifi_img[] PROGMEM = {
     // 'WiFi-QR, 96x96px
@@ -86,6 +89,28 @@ void initWifiManager()
     const IPAddress apIp(192, 168, 4, 25);
     const IPAddress apGateway(192, 168, 4, 25);
     const IPAddress apSubnet(255, 255, 255, 0);
+    const RuntimeConfig &config = getRuntimeConfig();
+
+    char weatherApiKey[80];
+    char driverApiKey[80];
+    char weatherLocation[48];
+    char mqttBroker[80];
+    char mqttUsername[48];
+    char mqttPassword[80];
+
+    strlcpy(weatherApiKey, config.weatherApiKey.c_str(), sizeof(weatherApiKey));
+    strlcpy(driverApiKey, config.driverApiKey.c_str(), sizeof(driverApiKey));
+    strlcpy(weatherLocation, config.weatherLocation.c_str(), sizeof(weatherLocation));
+    strlcpy(mqttBroker, config.mqttBroker.c_str(), sizeof(mqttBroker));
+    strlcpy(mqttUsername, config.mqttUsername.c_str(), sizeof(mqttUsername));
+    strlcpy(mqttPassword, config.mqttPassword.c_str(), sizeof(mqttPassword));
+
+    WiFiManagerParameter weatherApiKeyParam("weather_key", "Weather API Key", weatherApiKey, sizeof(weatherApiKey));
+    WiFiManagerParameter driverApiKeyParam("driver_key", "Driver API Key", driverApiKey, sizeof(driverApiKey));
+    WiFiManagerParameter weatherLocationParam("weather_loc", "Weather Location(ip/city/id)", weatherLocation, sizeof(weatherLocation));
+    WiFiManagerParameter mqttBrokerParam("mqtt_host", "MQTT Broker", mqttBroker, sizeof(mqttBroker));
+    WiFiManagerParameter mqttUsernameParam("mqtt_user", "MQTT Username", mqttUsername, sizeof(mqttUsername));
+    WiFiManagerParameter mqttPasswordParam("mqtt_pass", "MQTT Password", mqttPassword, sizeof(mqttPassword), "type='password'");
 
     // wifiManager.resetSettings();
     // ESP.eraseConfig();
@@ -102,8 +127,42 @@ void initWifiManager()
 
     wifiManager.setDebugOutput(true);
     wifiManager.setAPStaticIPConfig(apIp, apGateway, apSubnet);
+    wifiManager.addParameter(&weatherApiKeyParam);
+    wifiManager.addParameter(&driverApiKeyParam);
+    wifiManager.addParameter(&weatherLocationParam);
+    wifiManager.addParameter(&mqttBrokerParam);
+    wifiManager.addParameter(&mqttUsernameParam);
+    wifiManager.addParameter(&mqttPasswordParam);
+    wifiManager.setParamsPage(true);
 
-    if (!wifiManager.autoConnect("E_paperWifi"))
+    auto saveCustomParams = [&]() {
+        RuntimeConfig updatedConfig;
+        updatedConfig.weatherApiKey = weatherApiKeyParam.getValue();
+        updatedConfig.driverApiKey = driverApiKeyParam.getValue();
+        updatedConfig.weatherLocation = weatherLocationParam.getValue();
+        updatedConfig.mqttBroker = mqttBrokerParam.getValue();
+        updatedConfig.mqttUsername = mqttUsernameParam.getValue();
+        updatedConfig.mqttPassword = mqttPasswordParam.getValue();
+
+        if (!updatedConfig.weatherLocation.length())
+        {
+            updatedConfig.weatherLocation = "ip";
+        }
+
+        if (saveRuntimeConfig(updatedConfig))
+        {
+            applyNetworkConfig();
+            resetMQTT();
+        }
+    };
+
+    wifiManager.setSaveParamsCallback(saveCustomParams);
+
+    const bool connected = isRuntimeConfigComplete()
+                               ? wifiManager.autoConnect("E_paperWifi")
+                               : wifiManager.startConfigPortal("E_paperWifi");
+
+    if (!connected)
     {
         Serial.println("WiFiManager timeout");
         ESP.reset();

@@ -6,6 +6,7 @@
 #include "network_config.h"
 
 void initMQTT();
+void resetMQTT();
 void mqttLoop();
 
 #endif

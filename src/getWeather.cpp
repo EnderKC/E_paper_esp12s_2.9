@@ -17,7 +17,6 @@
 #include "display.h"
 #include "ui_helpers.h"
 #include "weather_img.h"
-#include "My_information.h"
 #include "network_config.h"
 #include "http_helpers.h"
 
@@ -77,7 +76,7 @@ extern int now_day;         // 定义在getTime.cpp
 void analyze_weather_json(String input, String (&data)[4])
 {
     // 分配512字节内存用于JSON文档解析
-    StaticJsonDocument<512> doc;
+    JsonDocument doc;
 
     // 尝试解析JSON数据
     DeserializationError error = deserializeJson(doc, input);

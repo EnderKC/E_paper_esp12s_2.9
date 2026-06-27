@@ -17,4 +17,6 @@ extern String weather_api;
 extern String driver_api_tianjin;
 extern String driver_api_beijing;
 
+void applyNetworkConfig();
+
 #endif // NETWORK_CONFIG_H
