@@ -19,7 +19,6 @@
 #include <U8g2_for_Adafruit_GFX.h> // 中文字体显示库
 
 // 项目自定义头文件
-#include "My_information.h"         // 个人配置信息（API密钥等）
 #include "display.h"               // 显示屏初始化和基础显示函数
 #include "connWIFI.h"              // WiFi连接配置
 #include "getTime.h"               // 时间获取和显示模块
@@ -30,6 +29,8 @@
 #include "mqtt.h"                  // MQTT通信模块
 #include "app_config.h"
 #include "ota_update.h"
+#include "network_config.h"
+#include "runtime_config.h"
 
 /**
  * @brief 系统版本更新日志
@@ -70,7 +71,10 @@
 void setup()
 {
     ePaper_init();    // 初始化电子墨水屏显示模块
+    initRuntimeConfig();
+    applyNetworkConfig();
     initWifiManager(); // 初始化WiFi管理器，提供连接配置界面
+    applyNetworkConfig();
     checkForFirmwareUpdate(true); // 联网后主动检查固件更新
     time_init();      // 初始化NTP时间同步，每10秒检查一次
     weather_init();   // 初始化天气信息获取，20分钟刷新一次

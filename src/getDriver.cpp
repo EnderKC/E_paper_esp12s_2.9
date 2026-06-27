@@ -7,7 +7,6 @@
  */
 
 #include "getDriver.h"
-#include "My_information.h"
 #include "display.h"
 #include "ui_helpers.h"
 #include "http_helpers.h"
@@ -54,7 +53,7 @@ int timer_driver = 1;
 void analyze_driver_json(String input, String (&data)[4])
 {
     // 创建JSON文档对象，分配1536字节内存
-    StaticJsonDocument<1536> doc;
+    JsonDocument doc;
 
     // 反序列化JSON字符串
     DeserializationError error = deserializeJson(doc, input);

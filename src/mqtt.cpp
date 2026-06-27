@@ -129,6 +129,17 @@ void initMQTT()
     mqttConfigured = true;
 }
 
+void resetMQTT()
+{
+    if (mqttClient.connected())
+    {
+        mqttClient.disconnect();
+    }
+
+    mqttClient.setServer(mqtt_broker, mqtt_port);
+    lastConnectAttempt = 0;
+}
+
 void mqttLoop()
 {
     if (!mqttConfigured)

@@ -56,7 +56,7 @@ int timer_gushi = 1;
  */
 void analyze_gushi_json(String input, String (&data)[4])
 {
-    StaticJsonDocument<256> doc;
+    JsonDocument doc;
 
     DeserializationError error = deserializeJson(doc, input);
 
