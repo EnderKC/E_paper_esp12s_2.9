@@ -4,9 +4,8 @@ on:
   push:
     branches:
       - master
-      - dev
-    tags:
-      - "v*"
+    paths:
+      - include/version_config.h
   workflow_dispatch:
 
 permissions:
@@ -19,6 +18,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Cache PlatformIO
         uses: actions/cache@v4
@@ -41,25 +42,78 @@ jobs:
       - name: Prepare default secrets
         run: cp include/secrets.example.h include/secrets.h
 
-      - name: Prepare build version
-        env:
-          VERSION: ${{ github.ref_name }}
+      - name: Read firmware version
+        id: version
         run: |
-          cat > include/build_version.h <<EOF
-          #ifndef BUILD_VERSION_H
-          #define BUILD_VERSION_H
-          #define APP_VERSION "${VERSION}"
-          #endif // BUILD_VERSION_H
-          EOF
+          set -euo pipefail
+
+          extract_version() {
+            sed -nE 's/^#define[[:space:]]+APP_VERSION[[:space:]]+"([^"]+)".*/\1/p' "$1" | head -n 1
+          }
+
+          current_version="$(extract_version include/version_config.h)"
+          if [ -z "${current_version}" ]; then
+            echo "APP_VERSION not found in include/version_config.h" >&2
+            exit 1
+          fi
+
+          if ! printf '%s' "${current_version}" | grep -Eq '^v[0-9]+(\.[0-9]+){2}([-.][0-9A-Za-z.-]+)?$'; then
+            echo "APP_VERSION must look like v1.2.3, got: ${current_version}" >&2
+            exit 1
+          fi
+
+          previous_version=""
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && git cat-file -e "${{ github.event.before }}^{commit}" 2>/dev/null; then
+            git show "${{ github.event.before }}:include/version_config.h" > /tmp/previous_version_config.h 2>/dev/null || true
+            if [ -s /tmp/previous_version_config.h ]; then
+              previous_version="$(extract_version /tmp/previous_version_config.h || true)"
+            fi
+          fi
+
+          changed="true"
+          if [ "${GITHUB_EVENT_NAME}" = "push" ] && [ "${current_version}" = "${previous_version}" ]; then
+            changed="false"
+          fi
+
+          {
+            echo "version=${current_version}"
+            echo "previous_version=${previous_version}"
+            echo "changed=${changed}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "Current firmware version: ${current_version}"
+          echo "Previous firmware version: ${previous_version:-<none>}"
+          echo "Version changed: ${changed}"
+
+      - name: Stop when version is unchanged
+        if: steps.version.outputs.changed != 'true'
+        run: echo "include/version_config.h changed, but APP_VERSION did not change. Skipping release."
+
+      - name: Check release does not exist
+        if: steps.version.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if gh release view "${VERSION}" >/dev/null 2>&1; then
+            echo "Release ${VERSION} already exists" >&2
+            exit 1
+          fi
+          if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "Tag ${VERSION} already exists" >&2
+            exit 1
+          fi
 
       - name: Build firmware
+        if: steps.version.outputs.changed == 'true'
         run: pio run -e esp12e
 
       - name: Prepare firmware artifacts
+        if: steps.version.outputs.changed == 'true'
         env:
           REPOSITORY: ${{ github.repository }}
-          VERSION: ${{ github.ref_name }}
-          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/') }}
+          VERSION: ${{ steps.version.outputs.version }}
           SHA: ${{ github.sha }}
         run: |
           set -euo pipefail
@@ -77,11 +131,7 @@ jobs:
           data = firmware.read_bytes()
           version = os.environ["VERSION"]
           repository = os.environ["REPOSITORY"]
-
-          if os.environ["IS_TAG"] == "true":
-              bin_url = f"https://github.com/{repository}/releases/download/{version}/firmware.bin"
-          else:
-              bin_url = ""
+          bin_url = f"https://github.com/{repository}/releases/download/{version}/firmware.bin"
 
           md5 = hashlib.md5(data).hexdigest()
           sha256 = hashlib.sha256(data).hexdigest()
@@ -113,24 +163,26 @@ jobs:
           } > artifacts/release-notes.md
 
       - name: Upload build artifact
+        if: steps.version.outputs.changed == 'true'
         uses: actions/upload-artifact@v4
         with:
-          name: firmware-${{ github.ref_name }}
+          name: firmware-${{ steps.version.outputs.version }}
           path: |
             artifacts/firmware.bin
             artifacts/manifest.json
             artifacts/firmware.md5
 
       - name: Create GitHub Release
-        if: startsWith(github.ref, 'refs/tags/')
+        if: steps.version.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ github.ref_name }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           set -euo pipefail
           gh release create "${VERSION}" \
             artifacts/firmware.bin \
             artifacts/manifest.json \
             artifacts/firmware.md5 \
+            --target "${GITHUB_SHA}" \
             --title "${VERSION}" \
             --notes-file artifacts/release-notes.md

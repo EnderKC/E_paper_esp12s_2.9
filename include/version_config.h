@@ -1,0 +1,6 @@
+#ifndef VERSION_CONFIG_H
+#define VERSION_CONFIG_H
+
+#define APP_VERSION "v1.0.0"
+
+#endif // VERSION_CONFIG_H
