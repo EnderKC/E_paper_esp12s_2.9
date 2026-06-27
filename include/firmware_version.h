@@ -3,8 +3,8 @@
 
 #include "version_config.h"
 
-#ifndef OTA_MANIFEST_URL
-#define OTA_MANIFEST_URL "https://gitee.com/enderkc/e_paper_esp12s_2.9/releases/download/" APP_VERSION "/manifest.json"
+#ifndef OTA_RELEASE_API_URL
+#define OTA_RELEASE_API_URL "https://gitee.com/api/v5/repos/enderkc/e_paper_esp12s_2.9/releases/latest"
 #endif
 
 #endif // FIRMWARE_VERSION_H

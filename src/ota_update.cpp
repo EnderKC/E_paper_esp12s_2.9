@@ -106,11 +106,57 @@ void handleUpdateProgress(int current, int total)
     drawOtaProgress(percent, current, total);
 }
 
-bool fetchManifest(String &payload)
+bool findAssetUrlByName(JsonArrayConst assets, const char *assetName, String &assetUrl)
+{
+    assetUrl = "";
+
+    for (JsonObjectConst asset : assets)
+    {
+        const char *name = asset["name"] | "";
+        if (strcmp(name, assetName) == 0)
+        {
+            assetUrl = asset["browser_download_url"] | "";
+            return assetUrl.length() > 0;
+        }
+    }
+
+    return false;
+}
+
+bool parseLatestRelease(const String &payload, String &releaseVersion, String &manifestUrl)
+{
+    JsonDocument doc;
+    const DeserializationError error = deserializeJson(doc, payload);
+    if (error)
+    {
+        Serial.printf("OTA release JSON failed: %s\n", error.c_str());
+        return false;
+    }
+
+    releaseVersion = doc["tag_name"] | "";
+    Serial.printf("OTA latest release version: %s\n", releaseVersion.c_str());
+
+    JsonArrayConst assets = doc["assets"].as<JsonArrayConst>();
+    if (assets.isNull())
+    {
+        Serial.println("OTA latest release missing assets");
+        return false;
+    }
+
+    if (!findAssetUrlByName(assets, "manifest.json", manifestUrl))
+    {
+        Serial.println("OTA latest release missing manifest.json asset");
+        return false;
+    }
+
+    Serial.printf("OTA latest manifest asset: %s\n", manifestUrl.c_str());
+    return releaseVersion.length() > 0;
+}
+
+bool fetchUrlPayload(const String &url, const char *label, String &payload)
 {
     payload = "";
-
-    Serial.printf("OTA manifest URL: %s\n", OTA_MANIFEST_URL);
+    Serial.printf("OTA %s URL: %s\n", label, url.c_str());
 
     BearSSL::WiFiClientSecure otaClient;
     otaClient.setInsecure();
@@ -119,34 +165,35 @@ bool fetchManifest(String &payload)
     http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
     http.setRedirectLimit(5);
     http.setTimeout(15000);
-    if (!http.begin(otaClient, OTA_MANIFEST_URL))
+    if (!http.begin(otaClient, url))
     {
-        Serial.println("OTA manifest HTTP begin failed");
+        Serial.printf("OTA %s HTTP begin failed\n", label);
         return false;
     }
 
     const int httpCode = http.GET();
-    Serial.printf("OTA manifest HTTP code: %d\n", httpCode);
+    Serial.printf("OTA %s HTTP code: %d\n", label, httpCode);
     if (httpCode != HTTP_CODE_OK)
     {
-        Serial.printf("OTA manifest HTTP failed, code=%d, error=%s\n",
+        Serial.printf("OTA %s HTTP failed, code=%d, error=%s\n",
+                      label,
                       httpCode,
                       http.errorToString(httpCode).c_str());
         const String errorPayload = http.getString();
         if (errorPayload.length())
         {
-            Serial.printf("OTA manifest error body length: %u\n", errorPayload.length());
-            Serial.printf("OTA manifest error body head: %.160s\n", errorPayload.c_str());
+            Serial.printf("OTA %s error body length: %u\n", label, errorPayload.length());
+            Serial.printf("OTA %s error body head: %.160s\n", label, errorPayload.c_str());
         }
         http.end();
         return false;
     }
 
     payload = http.getString();
-    Serial.printf("OTA manifest payload length: %u\n", payload.length());
+    Serial.printf("OTA %s payload length: %u\n", label, payload.length());
     if (payload.length())
     {
-        Serial.printf("OTA manifest payload head: %.160s\n", payload.c_str());
+        Serial.printf("OTA %s payload head: %.160s\n", label, payload.c_str());
     }
     http.end();
     return payload.length() > 0;
@@ -275,10 +322,25 @@ void checkForFirmwareUpdate(bool force)
     Serial.printf("OTA current version: %s\n", APP_VERSION);
     drawOtaPage("检查固件更新", APP_VERSION, "正在连接更新服务器...");
 
-    String payload;
-    if (!fetchManifest(payload))
+    String releasePayload;
+    if (!fetchUrlPayload(OTA_RELEASE_API_URL, "release", releasePayload))
     {
         drawOtaPage("检查更新失败", "无法获取版本信息", "稍后会再次检查");
+        return;
+    }
+
+    String latestReleaseVersion;
+    String manifestUrl;
+    if (!parseLatestRelease(releasePayload, latestReleaseVersion, manifestUrl))
+    {
+        drawOtaPage("检查更新失败", "版本接口无效", "稍后会再次检查");
+        return;
+    }
+
+    String payload;
+    if (!fetchUrlPayload(manifestUrl, "manifest", payload))
+    {
+        drawOtaPage("检查更新失败", "无法获取固件清单", "稍后会再次检查");
         return;
     }
 
